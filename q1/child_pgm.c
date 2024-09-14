@@ -14,6 +14,14 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+#define INFO 0
+
+#if INFO == 1
+#define debug printf
+#else
+#define debug( ...)
+#endif
+
 #define SHM_SIZE 4096
 
 #define PARENT_SEM_NAME "/parentsem"
@@ -24,6 +32,7 @@
 sem_t *parent_sem, *child1_sem, *child2_sem, *shm_sem;
 int shmid;
 char * shared_memory;
+FILE* output_file;
 
 void terminate_signal_handler(int signum) {
     if(signum == SIGTERM){
@@ -42,7 +51,7 @@ int main(int argc, char * argv[]){
     int pipe_read_fd = atoi(argv[2]);  // Use argv[2] for pipe file descriptor
     int shared_memory_id;
     
-    if(read(pipe_read_fd, &shared_memory_id, sizeof(int)) == -1){
+    if(read(pipe_read_fd, &shared_memory_id, sizeof(int)) == -1 || read(pipe_read_fd, output_file, sizeof(FILE) == -1)){
         perror("read");
         exit(EXIT_FAILURE);
     }
@@ -68,35 +77,41 @@ int main(int argc, char * argv[]){
         fprintf(stderr, "errno: %d\n", errno);
         exit(EXIT_FAILURE);
     }
-
+    
     signal(SIGTERM, terminate_signal_handler);
+    char buffer[100];
 
     while(1){
         sleep(1);
 
         if(strcmp(argv[1], "ChildOne") == 0){
-            printf("waiting for semphore child one\n");
+            debug("waiting for semphore child one\n");
             sem_wait(child1_sem);
         }
         else{
-            printf("waiting for semphore child two\n");
+            debug("waiting for semphore child two\n");
             sem_wait(child2_sem);
         }
 
         
-        // printf("%s: %s\n", argv[1], shared_memory);
+        // strcpy(shared_memory, buffer);// read from shared memory
 
-        // char buffer[100];
+        // fprintf(output_file, "%s", shared_memory); // write to file
+        //  fflush(output_file);
+
         // read(STDIN_FILENO, buffer, sizeof(buffer));
-        printf("%s\n", argv[1]);
+        // buffer[strcspn(buffer, "\n")] = 0;
+
+        // sprintf(shared_memory, "%s: %s",argv[1], buffer);
+
 
         if(strcmp(argv[1], "ChildOne") == 0){
             sem_post(child2_sem);
-            printf("Posted semaphore of child two from child one\n");
+            debug("Posted semaphore of child two from child one\n");
         }
         else{
             sem_post(parent_sem);
-            printf("Posted semaphore of main from child two\n");
+            debug("Posted semaphore of main from child two\n");
         }
 
     }    

@@ -117,42 +117,42 @@ int main(int argc, char *argv[])
     close(pipe2[0]); // read side close
 
     shmid_to_send = shmid;
-    
+
     if (write(pipe1[1], &shmid_to_send, sizeof(int)) == -1 ||
-        write(pipe2[1], &shmid_to_send, sizeof(int)) == -1)
+        write(pipe2[1], &shmid_to_send, sizeof(int)) == -1 ||
+        write(pipe1[1], output_file, sizeof(FILE) == -1) ||
+        write(pipe2[1], output_file, sizeof(FILE) == -1))
     {
         perror("write");
         exit(EXIT_FAILURE);
     }
 
-    // char buffer[100];
-    // read(STDIN_FILENO, buffer, sizeof(buffer));
-    // buffer[strcspn(buffer, "\n")] = 0;
+    char buffer[100];
+    printf("Enter initial string: ");
+    fgets(buffer, sizeof(buffer), stdin);
 
-    // sem_wait(shm_sem);
-    // sprintf(shared_memory, "Parent: %s", buffer);
-    // sem_post(shm_sem);
-    int a, b, c, d;
-    
-    sem_getvalue(parent_sem, &a);
-    sem_getvalue(child1_sem, &b);
-    sem_getvalue(child2_sem, &c);
-    sem_getvalue(shm_sem, &d);
-   
-    printf("initial value for each semaphore %d %d %d %d\n", a, b, c, d);
-    sem_post(parent_sem);
+    sem_wait(shm_sem);
+    sprintf(shared_memory, "Parent: %s", buffer);
+    sem_post(shm_sem);
+    sem_post(child1_sem);
+
     while (1)
     {
         sleep(1);
 
         sem_wait(parent_sem);
-
-        // buffer[strcspn(buffer, "\n")] = 0;
-        // if (strcmp(buffer, "quit") == 0) break;
-        printf("parent \n");
-        // read(STDIN_FILENO, buffer, sizeof(buffer));
-        // sprintf(shared_memory, "Parent: %s", buffer);
         
+        // strcpy(shared_memory, buffer);// read from shared memory
+
+        // fprintf(output_file, "%s", shared_memory); // write to file
+
+        // read(STDIN_FILENO, buffer, sizeof(buffer));
+        // buffer[strcspn(buffer, "\n")] = 0;
+
+        // sprintf(shared_memory, "Parent: %s", buffer);
+
+        // if (strcmp(buffer, "TERMINATE") == 0)
+        //     break;
 
         sem_post(child1_sem);
     }
