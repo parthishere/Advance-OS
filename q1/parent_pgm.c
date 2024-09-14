@@ -16,13 +16,17 @@
 
 #define SHM_SIZE 1024
 #define SHARED_MEMORY_KEY 0x1234
-#define SEM_NAME "/mysemaphore"
+
+#define PARENT_SEM_NAME "/parentsem"
+#define CHILDONE_SEM_NAME "/childonesem"
+#define CHILDTWO_SEM_NAME "/childtwosem"
+#define SHARED_MEM_SEM_NAME "/sharedmemsem"
 
 int shmid;
 int semid;
 char *shared_memory;
 pid_t parent_pid, child1_pid, child2_pid;
-sem_t *sem;
+sem_t *parent_sem, *child1_sem, *child2_sem, *shm_sem;
 FILE *output_file;
 int shmid_to_send;
 
@@ -50,8 +54,12 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    sem = sem_open(SEM_NAME, O_CREAT, 0666, 1);
-    if (sem == SEM_FAILED)
+    parent_sem = sem_open(PARENT_SEM_NAME, O_CREAT, 0666, 1);
+    child1_sem = sem_open(CHILDONE_SEM_NAME, O_CREAT, 0666, 0);
+    child2_sem = sem_open(CHILDTWO_SEM_NAME, O_CREAT, 0666, 0);
+    shm_sem = sem_open(SHARED_MEM_SEM_NAME, O_CREAT, 0666, 0);
+
+    if (parent_sem == SEM_FAILED || child1_sem == SEM_FAILED || child2_sem == SEM_FAILED || shm_sem == SEM_FAILED)
     {
         perror("sem_open");
         fprintf(stderr, "errno: %d\n", errno);
@@ -109,36 +117,47 @@ int main(int argc, char *argv[])
     close(pipe2[0]); // read side close
 
     shmid_to_send = shmid;
+    
     if (write(pipe1[1], &shmid_to_send, sizeof(int)) == -1 ||
-        write(pipe2[1], &shmid_to_send, sizeof(int)) == -1) {
+        write(pipe2[1], &shmid_to_send, sizeof(int)) == -1)
+    {
         perror("write");
         exit(EXIT_FAILURE);
     }
 
+    // char buffer[100];
+    // read(STDIN_FILENO, buffer, sizeof(buffer));
+    // buffer[strcspn(buffer, "\n")] = 0;
 
-    char buffer[100];
-    read(STDIN_FILENO, buffer, sizeof(buffer));
-    buffer[strcspn(buffer, "\n")] = 0;
-    printf("written %s", buffer);
-    sem_wait(sem);
-    sprintf(shared_memory, "Parent: %s", buffer);
-    sem_post(sem);
+    // sem_wait(shm_sem);
+    // sprintf(shared_memory, "Parent: %s", buffer);
+    // sem_post(shm_sem);
+    int a, b, c, d;
+    
+    sem_getvalue(parent_sem, &a);
+    sem_getvalue(child1_sem, &b);
+    sem_getvalue(child2_sem, &c);
+    sem_getvalue(shm_sem, &d);
+   
+    printf("initial value for each semaphore %d %d %d %d\n", a, b, c, d);
+    sem_post(parent_sem);
+    while (1)
+    {
+        sleep(1);
 
-    while (fgets(buffer, sizeof(buffer), stdin) != NULL) {
-        // sleep(1);
-        buffer[strcspn(buffer, "\n")] = 0;
-        if (strcmp(buffer, "quit") == 0) break;
+        sem_wait(parent_sem);
+
+        // buffer[strcspn(buffer, "\n")] = 0;
+        // if (strcmp(buffer, "quit") == 0) break;
+        printf("parent \n");
+        // read(STDIN_FILENO, buffer, sizeof(buffer));
+        // sprintf(shared_memory, "Parent: %s", buffer);
         
 
-        sem_wait(sem);
-        // read(STDIN_FILENO, buffer, sizeof(buffer));
-        sprintf(shared_memory, "Parent: %s", buffer);
-        sem_post(sem);
-
-        printf("Enter a message (or 'quit' to exit): ");
+        sem_post(child1_sem);
     }
 
-     // Send termination signal to children
+    // Send termination signal to children
     kill(ChildOnePID, SIGTERM);
     kill(ChildTwoPID, SIGTERM);
 
@@ -147,8 +166,14 @@ int main(int argc, char *argv[])
     waitpid(child2_pid, NULL, 0);
 
     printf("Clearning up resources... \n");
-    sem_close(sem);
-    sem_unlink(SEM_NAME);
+    sem_close(parent_sem);
+    sem_unlink(PARENT_SEM_NAME);
+    sem_close(child1_sem);
+    sem_unlink(CHILDONE_SEM_NAME);
+    sem_close(child2_sem);
+    sem_unlink(CHILDTWO_SEM_NAME);
+    sem_close(shm_sem);
+    sem_unlink(SHARED_MEM_SEM_NAME);
     shmdt(shared_memory);
     shmctl(shmid, IPC_RMID, NULL);
 

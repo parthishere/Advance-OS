@@ -15,15 +15,19 @@
 #include <errno.h>
 
 #define SHM_SIZE 4096
-#define SEM_NAME "/mysemaphore"
 
-sem_t * sem;
+#define PARENT_SEM_NAME "/parentsem"
+#define CHILDONE_SEM_NAME "/childonesem"
+#define CHILDTWO_SEM_NAME "/childtwosem"
+#define SHARED_MEM_SEM_NAME "/sharedmemsem"
+
+sem_t *parent_sem, *child1_sem, *child2_sem, *shm_sem;
 int shmid;
 char * shared_memory;
 
 void terminate_signal_handler(int signum) {
     if(signum == SIGTERM){
-        sem_close(sem);
+        sem_close(parent_sem);
         exit(0);
     }
 }
@@ -34,7 +38,7 @@ int main(int argc, char * argv[]){
         return 1;
     }
 
-     printf("Process Name : %s\n", argv[1]);  // Use argv[1] for process name
+    printf("Process Name : %s\n", argv[1]);  // Use argv[1] for process name
     int pipe_read_fd = atoi(argv[2]);  // Use argv[2] for pipe file descriptor
     int shared_memory_id;
     
@@ -53,43 +57,50 @@ int main(int argc, char * argv[]){
         exit(EXIT_FAILURE);
     }
     
-    sem = sem_open(SEM_NAME, 0);
+    parent_sem = sem_open(PARENT_SEM_NAME, 0);
+    child1_sem = sem_open(CHILDONE_SEM_NAME, 0);
+    child2_sem = sem_open(CHILDTWO_SEM_NAME, 0);
+    shm_sem = sem_open(SHARED_MEM_SEM_NAME, 0);
+
+    if (parent_sem == SEM_FAILED || child1_sem == SEM_FAILED || child2_sem == SEM_FAILED || shm_sem == SEM_FAILED)
+    {
+        perror("sem_open");       
+        fprintf(stderr, "errno: %d\n", errno);
+        exit(EXIT_FAILURE);
+    }
 
     signal(SIGTERM, terminate_signal_handler);
 
     while(1){
         sleep(1);
 
-        sem_wait(sem);
-        // sprintf(shared_memory);
-        printf("%s \n", shared_memory);
-        // sem_post(sem);
+        if(strcmp(argv[1], "ChildOne") == 0){
+            printf("waiting for semphore child one\n");
+            sem_wait(child1_sem);
+        }
+        else{
+            printf("waiting for semphore child two\n");
+            sem_wait(child2_sem);
+        }
 
-    }
+        
+        // printf("%s: %s\n", argv[1], shared_memory);
 
-    // int shmid = shmget(SHARED_MEMORY_KEY, 0, IPC_CREAT | 0666);
-    // if (shmid == -1)
-    // {
-    //     perror("shmget");
-    //     fprintf(stderr, "errno: %d\n", errno);
-    //     exit(EXIT_FAILURE);
-    // }
+        // char buffer[100];
+        // read(STDIN_FILENO, buffer, sizeof(buffer));
+        printf("%s\n", argv[1]);
 
-    // char *shm = shmat(shmid, NULL, 0);
-    // if (shm == NULL)
-    // {
-    //     perror("shmat");
-    //     fprintf(stderr, "errno: %d\n", errno);
-    //     exit(EXIT_FAILURE);
-    // }
+        if(strcmp(argv[1], "ChildOne") == 0){
+            sem_post(child2_sem);
+            printf("Posted semaphore of child two from child one\n");
+        }
+        else{
+            sem_post(parent_sem);
+            printf("Posted semaphore of main from child two\n");
+        }
 
-    // sem_t *sem = sem_open(SEM_NAME, O_CREAT, 0666, 1);
-    // if (sem == SEM_FAILED)
-    // {
-    //     perror("sem_open");
-    //     fprintf(stderr, "errno: %d\n", errno);
-    //     exit(EXIT_FAILURE);
-    // }
+    }    
+
 
     return EXIT_SUCCESS;
 }
