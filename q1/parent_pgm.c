@@ -15,6 +15,7 @@
 #include <errno.h>
 
 #define SHM_SIZE 1024
+#define MAX_BUFFER 100
 #define SHARED_MEMORY_KEY 0x1234
 
 #define PARENT_SEM_NAME "/parentsem"
@@ -27,7 +28,7 @@ int semid;
 char *shared_memory;
 pid_t parent_pid, child1_pid, child2_pid;
 sem_t *parent_sem, *child1_sem, *child2_sem, *shm_sem;
-FILE *output_file;
+int output_file_fd;
 int shmid_to_send;
 
 int main(int argc, char *argv[])
@@ -80,13 +81,14 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    output_file = fopen("assignment zero output", "w");
-    if (output_file == NULL)
+    output_file_fd = open("assignment zero output", O_RDWR, 0666);
+    if (output_file_fd == -1)
     {
         perror("fopen");
         fprintf(stderr, "errno: %d\n", errno);
         exit(EXIT_FAILURE);
     }
+    printf("output file fd created %d\n", output_file_fd);
 
     int ChildOnePID = fork();
     if (ChildOnePID == 0)
@@ -120,12 +122,13 @@ int main(int argc, char *argv[])
 
     if (write(pipe1[1], &shmid_to_send, sizeof(int)) == -1 ||
         write(pipe2[1], &shmid_to_send, sizeof(int)) == -1 ||
-        write(pipe1[1], output_file, sizeof(FILE) == -1) ||
-        write(pipe2[1], output_file, sizeof(FILE) == -1))
+        write(pipe1[1], &output_file_fd, sizeof(int)) == -1 ||
+        write(pipe2[1], &output_file_fd, sizeof(int)) == -1)
     {
         perror("write");
         exit(EXIT_FAILURE);
     }
+    printf("output file fd sent %d\n", output_file_fd);
 
     char buffer[100];
     printf("Enter initial string: ");
@@ -139,10 +142,17 @@ int main(int argc, char *argv[])
         sleep(1);
         sem_wait(parent_sem);
         
-        strncpy(shared_memory, buffer, SHM_SIZE);// read from shared memory
+        strncpy(shared_memory, buffer, MAX_BUFFER -1);// read from shared memory
 
-        fprintf(output_file, "%s", shared_memory); // write to file
-        fflush(output_file);
+                //determine lenght of shared memory
+        int length_data_in_shm = strnlen(shared_memory, SHM_SIZE);
+
+        char file_write[length_data_in_shm+20];
+
+        int buffer_written_length = snprintf(file_write, sizeof(file_write),"Parent: %s\n", shared_memory);
+        if(buffer_written_length != 0 && buffer_written_length != -1){
+            write(output_file_fd, file_write, buffer_written_length);
+        }
 
         fgets(buffer, sizeof(buffer), stdin);
         buffer[strcspn(buffer, "\n")] = 0;
@@ -150,7 +160,7 @@ int main(int argc, char *argv[])
         if (strcmp(buffer, "TERMINATE") == 0)
            break;
 
-        sprintf(shared_memory, "Parent: %s", buffer);
+        sprintf(shared_memory,"Parent: %s", buffer);
 
     
         sem_post(child1_sem);
@@ -175,6 +185,7 @@ int main(int argc, char *argv[])
     sem_unlink(SHARED_MEM_SEM_NAME);
     shmdt(shared_memory);
     shmctl(shmid, IPC_RMID, NULL);
+    close(output_file_fd);
 
     return EXIT_SUCCESS;
 }

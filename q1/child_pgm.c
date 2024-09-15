@@ -32,7 +32,8 @@
 sem_t *parent_sem, *child1_sem, *child2_sem, *shm_sem;
 int shmid;
 char * shared_memory;
-FILE* output_file;
+int output_file_fd;
+char * process_name;
 
 void terminate_signal_handler(int signum) {
     if(signum == SIGTERM){
@@ -46,16 +47,17 @@ int main(int argc, char * argv[]){
         printf("Format should be ./executable <ProcessName> <PipeReadFileDescriptor> | argc %d\n", argc);
         return 1;
     }
-
-    // printf("Process Name : %s\n", argv[1]);  // Use argv[1] for process name
+    process_name = argv[1];
     int pipe_read_fd = atoi(argv[2]);  // Use argv[2] for pipe file descriptor
     int shared_memory_id;
-    
-    if(read(pipe_read_fd, &shared_memory_id, sizeof(int)) == -1 || read(pipe_read_fd, output_file, sizeof(FILE) == -1)){
+
+    if(read(pipe_read_fd, &shared_memory_id, sizeof(int)) == -1 || read(pipe_read_fd, &output_file_fd, sizeof(int)) == -1){
         perror("read");
         exit(EXIT_FAILURE);
     }
-    
+    printf("output file fd recieved %d\n", output_file_fd);
+    write(output_file_fd, "testing", 8);
+
 
     shared_memory = shmat(shared_memory_id, NULL, 0);
     if (shared_memory == (char *)(-1)) {
@@ -78,11 +80,11 @@ int main(int argc, char * argv[]){
 
     signal(SIGTERM, terminate_signal_handler);
     char buffer[100];
-
+    
     while(1){
         sleep(1);
 
-        if(strcmp(argv[1], "ChildOne") == 0){
+        if(strcmp(process_name, "ChildOne") == 0){
             debug("waiting for semphore child one\n");
             sem_wait(child1_sem);
         }
@@ -92,17 +94,26 @@ int main(int argc, char * argv[]){
         }
 
         
-        // strncpy(shared_memory, buffer, SHM_SIZE);// read from shared memory
+        strncpy(shared_memory, buffer, SHM_SIZE);// read from shared memory
 
-        // fprintf(output_file, "%s", shared_memory); // write to file
+        //determine lenght of shared memory
+        int length_data_in_shm = strnlen(shared_memory, SHM_SIZE);
 
-        // fgets(buffer, sizeof(buffer), stdin);
-        // buffer[strcspn(buffer, "\n")] = 0;
+        char file_write[length_data_in_shm+20];
+        int buffer_written_length = snprintf(file_write, sizeof(file_write),"%s: %s\n", process_name, shared_memory);
+        if(buffer_written_length != 0 && buffer_written_length != -1){
+            write(output_file_fd, file_write, buffer_written_length);
+        }
         
-        // printf("You entered: %s", buffer);
-        // sprintf(shared_memory, "%s: %s", argv[1], buffer);
+        
+        fgets(buffer, sizeof(buffer), stdin); // read from terminal
+        buffer[strcspn(buffer, "\n")] = 0;
 
-        if(strcmp(argv[1], "ChildOne") == 0){
+        printf("You entered: %s , read from process name :%s", buffer, process_name); // write to shared memory
+        sprintf(shared_memory, "%s: %s", argv[1], buffer);
+
+
+        if(strcmp(process_name, "ChildOne") == 0){
             sem_post(child2_sem);
             debug("Posted semaphore of child two from child one\n");
         }
