@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    parent_sem = sem_open(PARENT_SEM_NAME, O_CREAT, 0666, 1);
+    parent_sem = sem_open(PARENT_SEM_NAME, O_CREAT, 0666, 0);
     child1_sem = sem_open(CHILDONE_SEM_NAME, O_CREAT, 0666, 0);
     child2_sem = sem_open(CHILDTWO_SEM_NAME, O_CREAT, 0666, 0);
     shm_sem = sem_open(SHARED_MEM_SEM_NAME, O_CREAT, 0666, 0);
@@ -130,30 +130,29 @@ int main(int argc, char *argv[])
     char buffer[100];
     printf("Enter initial string: ");
     fgets(buffer, sizeof(buffer), stdin);
-
-    sem_wait(shm_sem);
+    printf("You entered: %s", buffer);
     sprintf(shared_memory, "Parent: %s", buffer);
-    sem_post(shm_sem);
-    sem_post(child1_sem);
 
+    sem_post(child1_sem);
     while (1)
     {
         sleep(1);
-
         sem_wait(parent_sem);
         
-        // strcpy(shared_memory, buffer);// read from shared memory
+        strncpy(shared_memory, buffer, SHM_SIZE);// read from shared memory
 
-        // fprintf(output_file, "%s", shared_memory); // write to file
+        fprintf(output_file, "%s", shared_memory); // write to file
+        fflush(output_file);
 
-        // read(STDIN_FILENO, buffer, sizeof(buffer));
-        // buffer[strcspn(buffer, "\n")] = 0;
+        fgets(buffer, sizeof(buffer), stdin);
+        buffer[strcspn(buffer, "\n")] = 0;
 
-        // sprintf(shared_memory, "Parent: %s", buffer);
+        if (strcmp(buffer, "TERMINATE") == 0)
+           break;
 
-        // if (strcmp(buffer, "TERMINATE") == 0)
-        //     break;
+        sprintf(shared_memory, "Parent: %s", buffer);
 
+    
         sem_post(child1_sem);
     }
 

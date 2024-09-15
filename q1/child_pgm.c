@@ -14,7 +14,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-#define INFO 0
+#define INFO 1
 
 #if INFO == 1
 #define debug printf
@@ -47,7 +47,7 @@ int main(int argc, char * argv[]){
         return 1;
     }
 
-    printf("Process Name : %s\n", argv[1]);  // Use argv[1] for process name
+    // printf("Process Name : %s\n", argv[1]);  // Use argv[1] for process name
     int pipe_read_fd = atoi(argv[2]);  // Use argv[2] for pipe file descriptor
     int shared_memory_id;
     
@@ -56,8 +56,6 @@ int main(int argc, char * argv[]){
         exit(EXIT_FAILURE);
     }
     
-    
-    printf("Received shared memory id: %d\n", shared_memory_id);
 
     shared_memory = shmat(shared_memory_id, NULL, 0);
     if (shared_memory == (char *)(-1)) {
@@ -77,7 +75,7 @@ int main(int argc, char * argv[]){
         fprintf(stderr, "errno: %d\n", errno);
         exit(EXIT_FAILURE);
     }
-    
+
     signal(SIGTERM, terminate_signal_handler);
     char buffer[100];
 
@@ -94,16 +92,15 @@ int main(int argc, char * argv[]){
         }
 
         
-        // strcpy(shared_memory, buffer);// read from shared memory
+        // strncpy(shared_memory, buffer, SHM_SIZE);// read from shared memory
 
         // fprintf(output_file, "%s", shared_memory); // write to file
-        //  fflush(output_file);
 
-        // read(STDIN_FILENO, buffer, sizeof(buffer));
+        // fgets(buffer, sizeof(buffer), stdin);
         // buffer[strcspn(buffer, "\n")] = 0;
-
-        // sprintf(shared_memory, "%s: %s",argv[1], buffer);
-
+        
+        // printf("You entered: %s", buffer);
+        // sprintf(shared_memory, "%s: %s", argv[1], buffer);
 
         if(strcmp(argv[1], "ChildOne") == 0){
             sem_post(child2_sem);
