@@ -8,7 +8,6 @@
 #include <sys/ipc.h>
 #include <sys/wait.h>
 #include <semaphore.h>
-#include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
 #include <sys/stat.h>
