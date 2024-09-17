@@ -99,6 +99,7 @@ void read_proc_dir(void *code_ptr, void *data_ptr, void *bss_ptr, void *heap_ptr
     printf("\n");
 }
 
+
 // Global will go to Data segment
 int global1;                     // BSS
 int global2 = 10;                // Initialized rw
@@ -108,49 +109,58 @@ char *global3 = "Parth Thakkar"; // Initialized r
 
 int main(int argc, char *argv[])
 {
+    
     if (argc != 3)
     {
-        printf("Usage : %s <arg1> <arg2>\n", argv[0]);
+        printf("Usage: %s <arg1> <arg2>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    printf("PID %d\n", getpid());
+    printf("=== Process Information ===\n");
+    printf("PID: %d\n", getpid());
+    printf("Virtual Address Space Size: 0x%lX (%lu bytes)\n\n", UINTPTR_MAX, UINTPTR_MAX);
 
-    // heap
-    void *dynamic1 = (void *)malloc(1);
-    void *dynamic2 = (void *)malloc(1);
-    // Stack
-    int local1;
-    int local2;
+    // Heap allocations
+    void *dynamic1 = malloc(1);
+    void *dynamic2 = malloc(1);
+    
+    // Stack variables
+    int local1 = 10;
+    int local2 = 20;
 
-    printf("Size of virtual space 0x%lX (%lu) \n", UINTPTR_MAX, UINTPTR_MAX);
-    // data segment main
-    printf("Code segment (where main is stored): %p\n", (void *)main);
+    printf("=== Memory Segment Addresses ===\n");
+    printf("1. Code Segment (Text):\n");
+    printf("   Main function: %p\n\n", (void *)main);
 
-    // initialized segment -> const read only -> read write
-    printf("Initialzied Data segment : %p\n", &global2);
-    // initialized segment -> const read only -> read
-    printf("Initialized segment with const (readonly initialized) : %p\n", &global3);
+    printf("2. Data Segment:\n");
+    printf("   Initialized (R/W):  %p (global2)\n", (void *)&global2);
+    printf("   Initialized (R/O):  %p (global3)\n", (void *)&global3);
+    printf("   Uninitialized (BSS): %p (global1)\n\n", (void *)&global1);
 
-    // bss segment uninitialized data
-    printf("BSS segment (UnInitialized data) %p\n", &global1);
+    printf("3. Heap Segment:\n");
+    printf("   First allocation:  %p\n", dynamic1);
+    printf("   Second allocation: %p\n", dynamic2);
+    printf("   Growth direction:  %s\n\n", 
+           (dynamic2 > dynamic1) ? "Upwards" : "Downwards");
 
-    // malloc heap
-    printf("Heap section (dynamic data) %p\n", dynamic1);
-    printf("Heap section grows up (dynamic data 2) %p\n", dynamic2);
+    printf("4. Stack Segment:\n");
+    printf("   Local variable 1: %p\n", (void *)&local1);
+    printf("   Local variable 2: %p\n", (void *)&local2);
+    printf("   Growth direction: %s\n", 
+           ((signed long)&local2 < (signed long)&local1) ? "Downwards" : "Upwards");
+    printf("   Command-line arguments:\n");
+    printf("     argc: %p\n", (void *)&argc);
+    printf("     argv: %p\n\n", (void *)argv);
 
-    // mmap section
-    // mmap();
-    // printf("mmap section %p\n", );
+    printf("5. Memory-Mapped Segment:\n");
+    printf("   (No mmap allocation in this example)\n\n");
 
-    // local vars stack
-    printf("Stack section (local data) %p\n", &local1);
-    printf("Stack section decreases (local data 2) %p\n", &local2);
+    printf("=== Detailed Memory Map from /proc ===\n");
+    read_proc_dir((void *)main, &global2, &global1, dynamic1, &local1, &argc);
 
-    // arg and argv above all
-    printf("argc and argv address %p %p \n", &argc, argv);
+    // Clean up
+    free(dynamic1);
+    free(dynamic2);
 
-    // from proc directory
-    read_proc_dir((void *)main, &global1, &global1, dynamic1, &local1, &argc);
     return EXIT_SUCCESS;
 }
