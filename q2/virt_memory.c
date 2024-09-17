@@ -100,6 +100,15 @@ void read_proc_dir(void *code_ptr, void *data_ptr, void *bss_ptr, void *heap_ptr
 }
 
 
+void stack_growth_demo(int depth) {
+    int local_var;
+    printf("   Stack in stack_growth_demo %p\n", (void *)&local_var);
+    if (depth > 0) {
+        stack_growth_demo(depth - 1);
+    }
+}
+
+
 // Global will go to Data segment
 int global1;                     // BSS
 int global2 = 10;                // Initialized rw
@@ -146,14 +155,14 @@ int main(int argc, char *argv[])
     printf("4. Stack Segment:\n");
     printf("   Local variable 1: %p\n", (void *)&local1);
     printf("   Local variable 2: %p\n", (void *)&local2);
-    printf("   Growth direction: %s\n", 
-           ((signed long)&local2 < (signed long)&local1) ? "Downwards" : "Upwards");
+    
     printf("   Command-line arguments:\n");
     printf("     argc: %p\n", (void *)&argc);
-    printf("     argv: %p\n\n", (void *)argv);
+    printf("     argv: %p\n", (void *)argv);
+    stack_growth_demo(5);
 
-    printf("5. Memory-Mapped Segment:\n");
-    printf("   (No mmap allocation in this example)\n\n");
+    printf("\n5. Memory-Mapped Segment:\n");
+    printf("   mmap allocation: %p \n\n", argv);
 
     printf("=== Detailed Memory Map from /proc ===\n");
     read_proc_dir((void *)main, &global2, &global1, dynamic1, &local1, &argc);
