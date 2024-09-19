@@ -1,0 +1,498 @@
+Parent Memory map ... 
+1. Address range: 0x6003b6dd3000 - 0x6003b6dd4000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 259:2
+5. Inode: 29121354
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x6003b6dd4000 - 0x6003b6dd5000 (Size: 4096 bytes)
+2. Permissions: r-xp
+3. File offset: 0x1000
+4. Device: 259:2
+5. Inode: 29121354
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x6003b6dd5000 - 0x6003b6dd6000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x2000
+4. Device: 259:2
+5. Inode: 29121354
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x6003b6dd6000 - 0x6003b6dd7000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x2000
+4. Device: 259:2
+5. Inode: 29121354
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x6003b6dd7000 - 0x6003b6dd8000 (Size: 4096 bytes)
+2. Permissions: rw-p
+3. File offset: 0x3000
+4. Device: 259:2
+5. Inode: 29121354
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x6003b7c2e000 - 0x6003b7c4f000 (Size: 135168 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [heap]
+
+1. Address range: 0x782abd000000 - 0x782abd028000 (Size: 163840 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd028000 - 0x782abd1b0000 (Size: 1605632 bytes)
+2. Permissions: r-xp
+3. File offset: 0x28000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd1b0000 - 0x782abd1ff000 (Size: 323584 bytes)
+2. Permissions: r--p
+3. File offset: 0x1b0000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd1ff000 - 0x782abd203000 (Size: 16384 bytes)
+2. Permissions: r--p
+3. File offset: 0x1fe000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd203000 - 0x782abd205000 (Size: 8192 bytes)
+2. Permissions: rw-p
+3. File offset: 0x202000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd205000 - 0x782abd212000 (Size: 53248 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd3f6000 - 0x782abd3f9000 (Size: 12288 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd415000 - 0x782abd417000 (Size: 8192 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd417000 - 0x782abd418000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x782abd418000 - 0x782abd443000 (Size: 176128 bytes)
+2. Permissions: r-xp
+3. File offset: 0x1000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x782abd443000 - 0x782abd44d000 (Size: 40960 bytes)
+2. Permissions: r--p
+3. File offset: 0x2c000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x782abd44d000 - 0x782abd44f000 (Size: 8192 bytes)
+2. Permissions: r--p
+3. File offset: 0x36000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x782abd44f000 - 0x782abd451000 (Size: 8192 bytes)
+2. Permissions: rw-p
+3. File offset: 0x38000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x7ffd87184000 - 0x7ffd871a5000 (Size: 135168 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [stack]
+
+1. Address range: 0x7ffd871db000 - 0x7ffd871df000 (Size: 16384 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [vvar]
+
+1. Address range: 0x7ffd871df000 - 0x7ffd871e1000 (Size: 8192 bytes)
+2. Permissions: r-xp
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [vdso]
+
+1. Address range: 0xffffffffff600000 - 0xffffffffff601000 (Size: 4096 bytes)
+2. Permissions: --xp
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [vsyscall]
+
+
+ ============================= 
+ ============================= 
+
+Child Memory map ... 
+1. Address range: 0x6003b6dd3000 - 0x6003b6dd4000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 259:2
+5. Inode: 29121354
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x6003b6dd4000 - 0x6003b6dd5000 (Size: 4096 bytes)
+2. Permissions: r-xp
+3. File offset: 0x1000
+4. Device: 259:2
+5. Inode: 29121354
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x6003b6dd5000 - 0x6003b6dd6000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x2000
+4. Device: 259:2
+5. Inode: 29121354
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x6003b6dd6000 - 0x6003b6dd7000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x2000
+4. Device: 259:2
+5. Inode: 29121354
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x6003b6dd7000 - 0x6003b6dd8000 (Size: 4096 bytes)
+2. Permissions: rw-p
+3. File offset: 0x3000
+4. Device: 259:2
+5. Inode: 29121354
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x6003b7c2e000 - 0x6003b7c4f000 (Size: 135168 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [heap]
+
+1. Address range: 0x782abd000000 - 0x782abd028000 (Size: 163840 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd028000 - 0x782abd1b0000 (Size: 1605632 bytes)
+2. Permissions: r-xp
+3. File offset: 0x28000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd1b0000 - 0x782abd1ff000 (Size: 323584 bytes)
+2. Permissions: r--p
+3. File offset: 0x1b0000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd1ff000 - 0x782abd203000 (Size: 16384 bytes)
+2. Permissions: r--p
+3. File offset: 0x1fe000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd203000 - 0x782abd205000 (Size: 8192 bytes)
+2. Permissions: rw-p
+3. File offset: 0x202000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd205000 - 0x782abd212000 (Size: 53248 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd3f6000 - 0x782abd3f9000 (Size: 12288 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd415000 - 0x782abd417000 (Size: 8192 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x782abd417000 - 0x782abd418000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x782abd418000 - 0x782abd443000 (Size: 176128 bytes)
+2. Permissions: r-xp
+3. File offset: 0x1000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x782abd443000 - 0x782abd44d000 (Size: 40960 bytes)
+2. Permissions: r--p
+3. File offset: 0x2c000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x782abd44d000 - 0x782abd44f000 (Size: 8192 bytes)
+2. Permissions: r--p
+3. File offset: 0x36000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x782abd44f000 - 0x782abd451000 (Size: 8192 bytes)
+2. Permissions: rw-p
+3. File offset: 0x38000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x7ffd87184000 - 0x7ffd871a5000 (Size: 135168 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [stack]
+
+1. Address range: 0x7ffd871db000 - 0x7ffd871df000 (Size: 16384 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [vvar]
+
+1. Address range: 0x7ffd871df000 - 0x7ffd871e1000 (Size: 8192 bytes)
+2. Permissions: r-xp
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [vdso]
+
+1. Address range: 0xffffffffff600000 - 0xffffffffff601000 (Size: 4096 bytes)
+2. Permissions: --xp
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [vsyscall]
+
+
+ ============================= 
+ ============================= 
+
+Child Memory map after exec ... 
+1. Address range: 0x61f37cb75000 - 0x61f37cb76000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 259:2
+5. Inode: 29121359
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x61f37cb76000 - 0x61f37cb77000 (Size: 4096 bytes)
+2. Permissions: r-xp
+3. File offset: 0x1000
+4. Device: 259:2
+5. Inode: 29121359
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x61f37cb77000 - 0x61f37cb78000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x2000
+4. Device: 259:2
+5. Inode: 29121359
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x61f37cb78000 - 0x61f37cb79000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x2000
+4. Device: 259:2
+5. Inode: 29121359
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x61f37cb79000 - 0x61f37cb7a000 (Size: 4096 bytes)
+2. Permissions: rw-p
+3. File offset: 0x3000
+4. Device: 259:2
+5. Inode: 29121359
+6. Pathname: /home/parth/Work/All_data/university/Advance
+
+1. Address range: 0x61f37d596000 - 0x61f37d5b7000 (Size: 135168 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [heap]
+
+1. Address range: 0x7449b4600000 - 0x7449b4628000 (Size: 163840 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x7449b4628000 - 0x7449b47b0000 (Size: 1605632 bytes)
+2. Permissions: r-xp
+3. File offset: 0x28000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x7449b47b0000 - 0x7449b47ff000 (Size: 323584 bytes)
+2. Permissions: r--p
+3. File offset: 0x1b0000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x7449b47ff000 - 0x7449b4803000 (Size: 16384 bytes)
+2. Permissions: r--p
+3. File offset: 0x1fe000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x7449b4803000 - 0x7449b4805000 (Size: 8192 bytes)
+2. Permissions: rw-p
+3. File offset: 0x202000
+4. Device: 259:2
+5. Inode: 10788399
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x7449b4805000 - 0x7449b4812000 (Size: 53248 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x7449b49d0000 - 0x7449b49d3000 (Size: 12288 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x7449b49ef000 - 0x7449b49f1000 (Size: 8192 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: /usr/lib/x86_64-linux-gnu/libc.so.6
+
+1. Address range: 0x7449b49f1000 - 0x7449b49f2000 (Size: 4096 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x7449b49f2000 - 0x7449b4a1d000 (Size: 176128 bytes)
+2. Permissions: r-xp
+3. File offset: 0x1000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x7449b4a1d000 - 0x7449b4a27000 (Size: 40960 bytes)
+2. Permissions: r--p
+3. File offset: 0x2c000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x7449b4a27000 - 0x7449b4a29000 (Size: 8192 bytes)
+2. Permissions: r--p
+3. File offset: 0x36000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x7449b4a29000 - 0x7449b4a2b000 (Size: 8192 bytes)
+2. Permissions: rw-p
+3. File offset: 0x38000
+4. Device: 259:2
+5. Inode: 10788396
+6. Pathname: /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+1. Address range: 0x7ffc72b4a000 - 0x7ffc72b6b000 (Size: 135168 bytes)
+2. Permissions: rw-p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [stack]
+
+1. Address range: 0x7ffc72bbf000 - 0x7ffc72bc3000 (Size: 16384 bytes)
+2. Permissions: r--p
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [vvar]
+
+1. Address range: 0x7ffc72bc3000 - 0x7ffc72bc5000 (Size: 8192 bytes)
+2. Permissions: r-xp
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [vdso]
+
+1. Address range: 0xffffffffff600000 - 0xffffffffff601000 (Size: 4096 bytes)
+2. Permissions: --xp
+3. File offset: 0x0
+4. Device: 0:0
+5. Inode: 0
+6. Pathname: [vsyscall]
+
+
+..........
+..........
+..........

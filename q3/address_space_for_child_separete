@@ -1,0 +1,25 @@
+Address space for sample_program runnint individualy 
+not from exec
+98e40c46000-598e40c47000 r--p 00000000 103:02 29121359                  /home/parth/Work/All_data/university/Advance OS/Assignment 0/q3/sample_program
+598e40c47000-598e40c48000 r-xp 00001000 103:02 29121359                  /home/parth/Work/All_data/university/Advance OS/Assignment 0/q3/sample_program
+598e40c48000-598e40c49000 r--p 00002000 103:02 29121359                  /home/parth/Work/All_data/university/Advance OS/Assignment 0/q3/sample_program
+598e40c49000-598e40c4a000 r--p 00002000 103:02 29121359                  /home/parth/Work/All_data/university/Advance OS/Assignment 0/q3/sample_program
+598e40c4a000-598e40c4b000 rw-p 00003000 103:02 29121359                  /home/parth/Work/All_data/university/Advance OS/Assignment 0/q3/sample_program
+598e41686000-598e416a7000 rw-p 00000000 00:00 0                          [heap]
+765f49400000-765f49428000 r--p 00000000 103:02 10788399                  /usr/lib/x86_64-linux-gnu/libc.so.6
+765f49428000-765f495b0000 r-xp 00028000 103:02 10788399                  /usr/lib/x86_64-linux-gnu/libc.so.6
+765f495b0000-765f495ff000 r--p 001b0000 103:02 10788399                  /usr/lib/x86_64-linux-gnu/libc.so.6
+765f495ff000-765f49603000 r--p 001fe000 103:02 10788399                  /usr/lib/x86_64-linux-gnu/libc.so.6
+765f49603000-765f49605000 rw-p 00202000 103:02 10788399                  /usr/lib/x86_64-linux-gnu/libc.so.6
+765f49605000-765f49612000 rw-p 00000000 00:00 0 
+765f4964b000-765f4964e000 rw-p 00000000 00:00 0 
+765f4966a000-765f4966c000 rw-p 00000000 00:00 0 
+765f4966c000-765f4966d000 r--p 00000000 103:02 10788396                  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+765f4966d000-765f49698000 r-xp 00001000 103:02 10788396                  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+765f49698000-765f496a2000 r--p 0002c000 103:02 10788396                  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+765f496a2000-765f496a4000 r--p 00036000 103:02 10788396                  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+765f496a4000-765f496a6000 rw-p 00038000 103:02 10788396                  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7ffee922d000-7ffee924f000 rw-p 00000000 00:00 0                          [stack]
+7ffee9267000-7ffee926b000 r--p 00000000 00:00 0                          [vvar]
+7ffee926b000-7ffee926d000 r-xp 00000000 00:00 0                          [vdso]
+ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsyscall]

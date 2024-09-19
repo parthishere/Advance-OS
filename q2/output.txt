@@ -1,0 +1,45 @@
+=== Process Information ===
+PID: 11678
+Virtual Address Space Size: 0xFFFFFFFFFFFFFFFF (18446744073709551615 bytes)
+
+=== Memory Segment Addresses ===
+1. Code Segment (Text):
+   Main function: 0x604fe9127771
+
+2. Data Segment:
+   Initialized (R/W):  0x604fe912a010 (global2)
+   Initialized (R/O):  0x604fe912a018 (global3)
+   Uninitialized (BSS): 0x604fe912a024 (global1)
+
+3. Heap Segment:
+   First allocation:  0x604feafa12b0
+   Second allocation: 0x604feafa12d0
+   Growth direction:  Upwards
+
+   Current Heap end 0x604feafc1000 
+4. Stack Segment:
+   Local variable 1: 0x7ffd49de59b8
+   Local variable 2: 0x7ffd49de59bc
+   Command-line arguments:
+     argc: 0x7ffd49de59ac
+     argv: 0x7ffd49de5b08
+   Stack in stack_growth_demo 0x7ffd49de5984
+   Stack in stack_growth_demo 0x7ffd49de5954
+   Stack in stack_growth_demo 0x7ffd49de5924
+   Stack in stack_growth_demo 0x7ffd49de58f4
+   Stack in stack_growth_demo 0x7ffd49de58c4
+   Stack in stack_growth_demo 0x7ffd49de5894
+
+5. Memory-Mapped Segment:
+   mmap allocation: 0x7ffd49de5b08 
+
+=== Detailed Memory Map from /proc ===
+Current segment Text (Code), start 604fe9127000 - 604fe9128000 (size 4096 bytes)
+  Pointer 0x604fe9127771 is within this Text (Code) segment
+Current segment Data, start 604fe912a000 - 604fe912b000 (size 4096 bytes)
+  Pointer 0x604fe912a010 is within this Data segment
+Current segment Heap, start 604feafa0000 - 604feafc1000 (size 135168 bytes)
+  Pointer 0x604feafa12b0 is within this Heap segment
+Current segment Stack, start 7ffd49dc7000 - 7ffd49de8000 (size 135168 bytes)
+  Pointer 0x7ffd49de59b8 is within this Stack segment
+

@@ -1,3 +1,17 @@
+/*
+ * Copyright (c) 2024 Parth Thakkar
+ * All rights reserved.
+ *
+ * File: parent_pgm.c
+ * 
+ * Description:
+ * This file implements an inter-process communication (IPC) system using shared memory,
+ * semaphores, and pipes. It creates a parent process and two child processes that communicate
+ * with each other through shared memory. The system uses semaphores for synchronization and
+ * pipes for initial setup communication. The parent process reads user input and writes it to
+ * shared memory, while child processes read from and write to the shared memory in a coordinated manner.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -14,15 +28,18 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+// Constants for shared memory and buffer sizes
 #define SHM_SIZE 1024
 #define MAX_BUFFER 100
 #define SHARED_MEMORY_KEY 0x1234
 
+// Semaphore names for synchronization
 #define PARENT_SEM_NAME "/parentsem"
 #define CHILDONE_SEM_NAME "/childonesem"
 #define CHILDTWO_SEM_NAME "/childtwosem"
 #define SHARED_MEM_SEM_NAME "/sharedmemsem"
 
+// Global variables for IPC resources
 int shmid;
 int semid;
 char *shared_memory;
@@ -31,6 +48,13 @@ sem_t *parent_sem, *child1_sem, *child2_sem, *shm_sem;
 int output_file_fd;
 int shmid_to_send;
 
+/**
+ * @brief Main function to set up and run the IPC system
+ *
+ * @param argc Argument count (unused)
+ * @param argv Argument vector (unused)
+ * @return int Exit status of the program
+ */
 int main(int argc, char *argv[])
 {
     int pipe1[2], pipe2[2];
@@ -39,6 +63,7 @@ int main(int argc, char *argv[])
 
     printf("Parent Process Running %d\n", parent_pid);
 
+    // Create shared memory segment
     shmid = shmget(SHARED_MEMORY_KEY, SHM_SIZE, IPC_CREAT | 0666);
     if (shmid == -1)
     {
@@ -47,6 +72,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    // Attach shared memory segment
     shared_memory = shmat(shmid, NULL, 0);
     if (shared_memory == (char *)(-1))
     {
@@ -55,6 +81,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    // Initialize semaphores for synchronization
     parent_sem = sem_open(PARENT_SEM_NAME, O_CREAT, 0666, 0);
     child1_sem = sem_open(CHILDONE_SEM_NAME, O_CREAT, 0666, 0);
     child2_sem = sem_open(CHILDTWO_SEM_NAME, O_CREAT, 0666, 0);
@@ -67,20 +94,15 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    if (pipe(pipe1) == -1)
+    // Create pipes for communication with child processes
+    if (pipe(pipe1) == -1 || pipe(pipe2) == -1)
     {
         perror("pipe");
         fprintf(stderr, "errno: %d\n", errno);
         exit(EXIT_FAILURE);
     }
 
-    if (pipe(pipe2) == -1)
-    {
-        perror("pipe");
-        fprintf(stderr, "errno: %d\n", errno);
-        exit(EXIT_FAILURE);
-    }
-
+    // Open output file
     output_file_fd = open("assignment zero output", O_RDWR, 0666);
     if (output_file_fd == -1)
     {
@@ -90,11 +112,12 @@ int main(int argc, char *argv[])
     }
     printf("output file fd created %d\n", output_file_fd);
 
+    // Fork first child process
     int ChildOnePID = fork();
     if (ChildOnePID == 0)
     {
-        // Child
-        close(pipe1[1]);
+        // Child One process
+        close(pipe1[1]);  // Close write end of pipe
 
         char pipe_read_fd_string[20];
         sprintf(pipe_read_fd_string, "%d", pipe1[0]);
@@ -102,24 +125,26 @@ int main(int argc, char *argv[])
         perror("execl");
     }
 
+    // Fork second child process
     int ChildTwoPID = fork();
     if (ChildTwoPID == 0)
     {
-        // Child
-        close(pipe2[1]);
+        // Child Two process
+        close(pipe2[1]);  // Close write end of pipe
 
         char pipe_read_fd_string[20];
-        // Sending file descriptor as child will have the pipes but it wont have file descriptor.
         sprintf(pipe_read_fd_string, "%d", pipe2[0]);
         execl("./child_pgm", "child_pgm", "ChildTwo", pipe_read_fd_string, NULL);
         perror("execl");
     }
-    // Parent
-    close(pipe1[0]); // read side close
-    close(pipe2[0]); // read side close
+
+    // Parent process
+    close(pipe1[0]);  // Close read end of pipe1
+    close(pipe2[0]);  // Close read end of pipe2
 
     shmid_to_send = shmid;
 
+    // Send shared memory ID and output file descriptor to child processes
     if (write(pipe1[1], &shmid_to_send, sizeof(int)) == -1 ||
         write(pipe2[1], &shmid_to_send, sizeof(int)) == -1 ||
         write(pipe1[1], &output_file_fd, sizeof(int)) == -1 ||
@@ -128,53 +153,49 @@ int main(int argc, char *argv[])
         perror("write");
         exit(EXIT_FAILURE);
     }
-    printf("output file fd sent %d\n", output_file_fd);
 
     char buffer[100];
     printf("Enter initial string: ");
     fgets(buffer, sizeof(buffer), stdin);
+    buffer[strcspn(buffer, "\n")] = 0;  // Remove newline character
     printf("You entered: %s", buffer);
     sprintf(shared_memory, "Parent: %s", buffer);
 
-    sem_post(child1_sem);
+    // Main communication loop
+    sem_post(child1_sem);  // Signal Child One to start
     while (1)
     {
-        sleep(1);
-        sem_wait(parent_sem);
+        sem_wait(parent_sem);  // Wait for parent's turn
         
-        strncpy(shared_memory, buffer, MAX_BUFFER -1);// read from shared memory
+        // Read from shared memory and write to output file
+        char temp[SHM_SIZE];
+        strncpy(temp, shared_memory, SHM_SIZE);
+        dprintf(output_file_fd, "%s\n", temp);
 
-                //determine lenght of shared memory
-        int length_data_in_shm = strnlen(shared_memory, SHM_SIZE);
-
-        char file_write[length_data_in_shm+20];
-
-        int buffer_written_length = snprintf(file_write, sizeof(file_write),"Parent: %s\n", shared_memory);
-        if(buffer_written_length != 0 && buffer_written_length != -1){
-            write(output_file_fd, file_write, buffer_written_length);
-        }
-
+        // Get user input
+        printf("Enter string (TERMINATE to exit): ");
         fgets(buffer, sizeof(buffer), stdin);
-        buffer[strcspn(buffer, "\n")] = 0;
+        buffer[strcspn(buffer, "\n")] = 0;  // Remove newline character
 
         if (strcmp(buffer, "TERMINATE") == 0)
-           break;
+            break;
 
-        sprintf(shared_memory,"Parent: %s", buffer);
-
+        // Write user input to shared memory
+        snprintf(shared_memory, SHM_SIZE, "Parent: %s", buffer);
     
-        sem_post(child1_sem);
+        sem_post(child1_sem);  // Signal Child One to continue
     }
 
-    // Send termination signal to children
+    // Terminate child processes
     kill(ChildOnePID, SIGTERM);
     kill(ChildTwoPID, SIGTERM);
 
-    // Wait for children to exit
+    // Wait for child processes to exit
     waitpid(child1_pid, NULL, 0);
     waitpid(child2_pid, NULL, 0);
 
-    printf("Clearning up resources... \n");
+    // Clean up resources
+    printf("Cleaning up resources... \n");
     sem_close(parent_sem);
     sem_unlink(PARENT_SEM_NAME);
     sem_close(child1_sem);
