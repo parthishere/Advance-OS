@@ -1,45 +1,47 @@
 === Process Information ===
-PID: 11678
+PID: 51257
 Virtual Address Space Size: 0xFFFFFFFFFFFFFFFF (18446744073709551615 bytes)
 
 === Memory Segment Addresses ===
 1. Code Segment (Text):
-   Main function: 0x604fe9127771
+   Main function: 0x63be761c0791
 
 2. Data Segment:
-   Initialized (R/W):  0x604fe912a010 (global2)
-   Initialized (R/O):  0x604fe912a018 (global3)
-   Uninitialized (BSS): 0x604fe912a024 (global1)
+   Initialized (R/W):  0x63be761c3010 (global2)
+   Initialized (R/O):  0x63be761c3018 (global3)
+   Static data 0x63be761c3014 
+   Uninitialized (BSS): 0x63be761c3024 (global1)
 
 3. Heap Segment:
-   First allocation:  0x604feafa12b0
-   Second allocation: 0x604feafa12d0
+   First allocation:  0x63be76eb52b0
+   Second allocation: 0x63be76eb52d0
    Growth direction:  Upwards
 
-   Current Heap end 0x604feafc1000 
+   Current Heap end 0x63be76ed5000 
+   Current Heap end(After 1byte Malloc) 0x63be76ed5000 
 4. Stack Segment:
-   Local variable 1: 0x7ffd49de59b8
-   Local variable 2: 0x7ffd49de59bc
+   Local variable 1: 0x7ffff131eda0
+   Local variable 2: 0x7ffff131eda4
    Command-line arguments:
-     argc: 0x7ffd49de59ac
-     argv: 0x7ffd49de5b08
-   Stack in stack_growth_demo 0x7ffd49de5984
-   Stack in stack_growth_demo 0x7ffd49de5954
-   Stack in stack_growth_demo 0x7ffd49de5924
-   Stack in stack_growth_demo 0x7ffd49de58f4
-   Stack in stack_growth_demo 0x7ffd49de58c4
-   Stack in stack_growth_demo 0x7ffd49de5894
+     argc: 0x7ffff131ed9c
+     argv: 0x7ffff131eef8
+   Stack in stack_growth_demo 0x7ffff131ed74
+   Stack in stack_growth_demo 0x7ffff131ed44
+   Stack in stack_growth_demo 0x7ffff131ed14
+   Stack in stack_growth_demo 0x7ffff131ece4
+   Stack in stack_growth_demo 0x7ffff131ecb4
+   Stack in stack_growth_demo 0x7ffff131ec84
 
 5. Memory-Mapped Segment:
-   mmap allocation: 0x7ffd49de5b08 
+   mmap allocation: 0x77b66b0f6000 
 
 === Detailed Memory Map from /proc ===
-Current segment Text (Code), start 604fe9127000 - 604fe9128000 (size 4096 bytes)
-  Pointer 0x604fe9127771 is within this Text (Code) segment
-Current segment Data, start 604fe912a000 - 604fe912b000 (size 4096 bytes)
-  Pointer 0x604fe912a010 is within this Data segment
-Current segment Heap, start 604feafa0000 - 604feafc1000 (size 135168 bytes)
-  Pointer 0x604feafa12b0 is within this Heap segment
-Current segment Stack, start 7ffd49dc7000 - 7ffd49de8000 (size 135168 bytes)
-  Pointer 0x7ffd49de59b8 is within this Stack segment
+Current segment Text (Code), start 63be761c0000 - 63be761c1000 (size 4096 bytes)
+  Pointer 0x63be761c0791 is within this Text (Code) segment
+Current segment Data, start 63be761c3000 - 63be761c4000 (size 4096 bytes)
+  Pointer 0x63be761c3010 is within this Data segment
+Current segment Heap, start 63be76eb4000 - 63be76ed5000 (size 135168 bytes)
+  Pointer 0x63be76eb52f0 is within this Heap segment
+Current segment Stack, start 7ffff12ff000 - 7ffff1320000 (size 135168 bytes)
+  Pointer 0x7ffff131eda0 is within this Stack segment
 

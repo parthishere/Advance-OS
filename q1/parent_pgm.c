@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
     }
 
     char buffer[100];
-    printf("Enter initial string: ");
+    printf("Parent, enter initial string: ");
     fgets(buffer, sizeof(buffer), stdin);
     buffer[strcspn(buffer, "\n")] = 0;  // Remove newline character
     printf("You entered: %s", buffer);

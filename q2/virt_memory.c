@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdint.h>
+#include <sys/mman.h>
 
 #define MAX_LINE 256  // Maximum length of a line read from /proc/[pid]/maps
 
@@ -151,6 +152,7 @@ int global1;                     // Uninitialized global variable (BSS segment)
 int global2 = 10;                // Initialized global variable (Data segment)
 char *global3 = "Parth Thakkar"; // Initialized global pointer (Data segment, points to read-only data)
 
+
 /**
  * main - Entry point of the program
  *
@@ -187,6 +189,8 @@ int main(int argc, char *argv[])
     int local1 = 10;
     int local2 = 20;
 
+    static int data = 10; // static data 
+
     // Print addresses of variables in different memory segments
     printf("=== Memory Segment Addresses ===\n");
     printf("1. Code Segment (Text):\n");
@@ -195,7 +199,9 @@ int main(int argc, char *argv[])
     printf("2. Data Segment:\n");
     printf("   Initialized (R/W):  %p (global2)\n", (void *)&global2);
     printf("   Initialized (R/O):  %p (global3)\n", (void *)&global3);
+    printf("   Static data %p \n", &data);
     printf("   Uninitialized (BSS): %p (global1)\n\n", (void *)&global1);
+
     
     printf("3. Heap Segment:\n");
     printf("   First allocation:  %p\n", dynamic1);
@@ -204,6 +210,9 @@ int main(int argc, char *argv[])
            (dynamic2 > dynamic1) ? "Upwards" : "Downwards");
     int * current_break = sbrk(0);  // Get current program break
     printf("   Current Heap end %p \n", current_break);
+    dynamic1 = (void *)malloc(1);
+    current_break = sbrk(0);  // Get current program break
+    printf("   Current Heap end(After 1byte Malloc) %p \n", current_break);
     
     printf("4. Stack Segment:\n");
     printf("   Local variable 1: %p\n", (void *)&local1);
@@ -215,7 +224,8 @@ int main(int argc, char *argv[])
     stack_growth_demo(5);  // Demonstrate stack growth
 
     printf("\n5. Memory-Mapped Segment:\n");
-    printf("   mmap allocation: %p \n\n", argv);
+    void *mmap1 = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    printf("   mmap allocation: %p \n\n", mmap1);
 
     // Read and display detailed memory map information
     printf("=== Detailed Memory Map from /proc ===\n");
