@@ -56,7 +56,7 @@ static ssize_t device_read(struct file *filp,
     spin_unlock_irqrestore(&your_lock, flags);
 
     printk(KERN_INFO "READ length %ld offset: %lld \n", length, *offset);
-    return 0;
+    return bytes_to_read;
 }
 
 /*  Called when a process writes to dev file: echo "hi" > /dev/hello */
