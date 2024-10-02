@@ -2,17 +2,21 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/errno.h>
+#include <linux/spinlock.h>
+
+
 
 #define DEVICE_NAME "chardev"
-#define BUFFER_SIZE 100
+#define BUFFER_SIZE 1024
 
-
+static DEFINE_SPINLOCK(your_lock);
 MODULE_AUTHOR("Parth Thakkar");
 MODULE_DESCRIPTION("chardev driver");
 MODULE_LICENSE("GPL");
 
 static int Major;
-int data[BUFFER_SIZE];
+static uint8_t custom_chardrv_data[BUFFER_SIZE]; //1KB
+static uint8_t device_open_count;
 
 /* Methods */
 
@@ -22,10 +26,9 @@ int data[BUFFER_SIZE];
  */
 static int device_open(struct inode *inode, struct file *file){
     printk("OPEN \n");
+    device_open_count++;
     return 0;
 }
-
-
 
 /* Called when a process, which already opened the dev file, attempts to
    read from it.
@@ -35,7 +38,24 @@ static ssize_t device_read(struct file *filp,
    size_t length,   /* The length of the buffer     */
    loff_t *offset)  /* Our offset in the file       */
 {   
-    printk("READ length %ld offset: %lld \n", length, *offset);
+    int bytes_to_read = 0, bytes_not_copied = 0; 
+    if(buffer == NULL) {
+        return -EINVAL;
+    }
+
+    unsigned long flags;
+    spin_lock_irqsave(&your_lock, flags);
+    bytes_to_read = (*offset + length) < BUFFER_SIZE ? length : (BUFFER_SIZE - *offset);
+    
+    bytes_not_copied = copy_to_user(buffer, &custom_chardrv_data[*offset], bytes_to_read);
+    if(bytes_not_copied != 0){
+        return -EFAULT;
+    }
+
+    *offset += bytes_to_read;
+    spin_unlock_irqrestore(&your_lock, flags);
+
+    printk(KERN_INFO "READ length %ld offset: %lld \n", length, *offset);
     return 0;
 }
 
@@ -45,20 +65,61 @@ const char *buffer,
    size_t length,
    loff_t *offset)
 {
+    
+
+    int bytes_to_write, bytes_not_copied; 
+    if(buffer == NULL || length <= 0){
+        printk(KERN_ERR "initial condition not met for write %d %d %d\n", buffer == NULL , length <= 0 , sizeof(buffer) < BUFFER_SIZE);
+        return -EINVAL;
+    } 
+
+    unsigned long flags;
+    spin_lock_irqsave(&your_lock, flags);
+    bytes_to_write = (length > (BUFFER_SIZE - *offset - 1)) ? (BUFFER_SIZE - *offset - 1) : length;
+
+    /* The buffer is in the user data segment, not the kernel segment;
+         * assignment won't work.  We have to use copy_from_user which copies data from
+         * the user data segment to the kernel data segment. */
+    bytes_not_copied = copy_from_user(&custom_chardrv_data[*offset], buffer, bytes_to_write);
+    if(bytes_not_copied != 0){
+        return -EFAULT;
+    }
+
+    *offset += bytes_to_write;
+    spin_unlock_irqrestore(&your_lock, flags);
+
     printk("WRITE length %ld offset: %lld \n", length, *offset);
-    return 0;
+    return bytes_to_write;
 }
 
 
-static loff_t device_llseek(struct file *file, loff_t offset, int value){
-    printk("LLSEEK length %lld offset: %d \n", offset, value);
-    return 0;
+static loff_t device_llseek(struct file *flip, loff_t offset, int whence){
+    loff_t newpos = 0;
+    switch(whence){
+        case SEEK_SET:
+        newpos = 0;
+        break;
+        case SEEK_CUR:
+        newpos = offset;
+        break;
+        case SEEK_END:
+        newpos = BUFFER_SIZE - 1;
+        break;
+        return -EINVAL;
+        
+    };
+
+    printk(KERN_INFO "LLSEEK length %lld offset: %d \n", offset, whence);
+
+    flip->f_pos = newpos;
+    return newpos;
 }
 
 
 /* Called when a process closes the device file */
 static int device_release(struct inode *inode, struct file *file)
 {
+    device_open_count--;
     printk("RELEASE  \n");
 
    return 0;
@@ -108,7 +169,9 @@ static struct file_operations fops = {
 
 
 static int __init custom_init(void){
+    memset(custom_chardrv_data, 0, sizeof(custom_chardrv_data));
     printk(KERN_INFO "Hello world !\n");
+
     int return_val = register_chrdev(0, DEVICE_NAME, &fops);
     if(return_val < 0){
         printk(KERN_ERR "Registering device failed : %d \n", return_val);
