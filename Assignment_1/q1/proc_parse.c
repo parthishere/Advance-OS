@@ -226,7 +226,9 @@ void decode_iomem(){
         fclose(iomem);
     }
 
-    FILE * kallsyms;
+    // FILE * kallsyms = fopen("/proc/kallsyms", "rd");
+    
+    
 }
 
 
@@ -257,54 +259,92 @@ void print_static_info(){
 
     decode_iomem();
     decode_stat(&cpu_stats, &sys_stats);
-    printf("Boot Time: %d\n", sys_stats.boot_time);
+    printf("Boot Time: %d second\n", sys_stats.boot_time);
     
 }
 
 
-void print_dynamic_info(int interval){
-    while(1){
+
+void print_dynamic_info(int read_rate, int print_rate) {
+    CPUStats cpu_stats, prev_cpu_stats;
+    SystemStats sys_stats, prev_sys_stats;
+    DiskStats disk_stats[MAX_DISKS], prev_disk_stats[MAX_DISKS];
+    MemInfo mem_info;
+    int num_disks;
+    int samples = 0;
+    unsigned long long total_user = 0, total_system = 0, total_idle = 0;
+    unsigned long long total_free_mem = 0, total_context_switches = 0, total_processes = 0;
+    unsigned long long total_read_sectors = 0, total_write_sectors = 0;
+
+    decode_stat(&prev_cpu_stats, &prev_sys_stats);
+    decode_disk(prev_disk_stats, &num_disks);
+
+    while (1) {
+        sleep(read_rate);
+        samples++;
+
         decode_stat(&cpu_stats, &sys_stats);
         decode_disk(disk_stats, &num_disks);
         decode_meminfo(&mem_info);
 
-        printf("CPU Stats:\n");
-        printf("User: %lld\n", cpu_stats.user);
-        printf("System: %lld\n", cpu_stats.system);
-        printf("Idle: %lld\n\n", cpu_stats.idle);
+        unsigned long long cpu_user = cpu_stats.user - prev_cpu_stats.user;
+        unsigned long long cpu_system = cpu_stats.system - prev_cpu_stats.system;
+        unsigned long long cpu_idle = cpu_stats.idle - prev_cpu_stats.idle;
+        unsigned long long cpu_total = cpu_user + cpu_system + cpu_idle;
 
-        printf("Free: %ld KB\n\n", mem_info.free);
+        total_user += cpu_user;
+        total_system += cpu_system;
+        total_idle += cpu_idle;
+        total_free_mem += mem_info.free;
+        total_context_switches += sys_stats.context_switches - prev_sys_stats.context_switches;
+        total_processes += sys_stats.processes_created - prev_sys_stats.processes_created;
 
-        // sys_stats.boot_time
-
-        printf("Disk Stats:\n");
-        for(int i = 0; i < num_disks; i++) {
-            printf("Device: %s\n", disk_stats[i].device_name);
-            printf("  Reads Completed: %llu\n", disk_stats[i].reads_completed);
-            printf("  Writes Completed: %llu\n", disk_stats[i].writes_completed);
-            printf("  I/O in Progress: %llu\n\n", disk_stats[i].io_in_progress);
+        for (int i = 0; i < num_disks; i++) {
+            total_read_sectors += disk_stats[i].sectors_read - prev_disk_stats[i].sectors_read;
+            total_write_sectors += disk_stats[i].sectors_written - prev_disk_stats[i].sectors_written;
         }
 
-        printf("System Stats:\n");
-        printf("IRQs: %d\n", sys_stats.irq);
-        printf("Context Switches: %d\n\n", sys_stats.context_switches);
+        if (samples * read_rate >= print_rate) {
+            double avg_user = (double)total_user / (total_user + total_system + total_idle) * 100;
+            double avg_system = (double)total_system / (total_user + total_system + total_idle) * 100;
+            double avg_idle = (double)total_idle / (total_user + total_system + total_idle) * 100;
+            double avg_free_mem = (double)total_free_mem / samples;
+            double avg_free_mem_percent = (double)avg_free_mem / mem_info.total * 100;
+            double avg_read_rate = (double)total_read_sectors / print_rate;
+            double avg_write_rate = (double)total_write_sectors / print_rate;
+            double avg_context_switches = (double)total_context_switches / print_rate;
+            double avg_processes = (double)total_processes / print_rate;
 
+            printf("CPU usage: %.2f%% user, %.2f%% system, %.2f%% idle\n", avg_user, avg_system, avg_idle);
+            printf("Memory: %.2f kB (%.2f%%) free\n", avg_free_mem, avg_free_mem_percent);
+            printf("Disk I/O: %.2f sectors/s read, %.2f sectors/s written\n", avg_read_rate, avg_write_rate);
+            printf("Context switches: %.2f/s\n", avg_context_switches);
+            printf("Process creations: %.2f/s\n\n", avg_processes);
 
-    
+            samples = 0;
+            total_user = total_system = total_idle = 0;
+            total_free_mem = total_context_switches = total_processes = 0;
+            total_read_sectors = total_write_sectors = 0;
+        }
 
-        printf("Processes Created: %d\n\n", sys_stats.processes_created);
-        sleep(interval);
+        memcpy(&prev_cpu_stats, &cpu_stats, sizeof(CPUStats));
+        memcpy(&prev_sys_stats, &sys_stats, sizeof(SystemStats));
+        memcpy(prev_disk_stats, disk_stats, sizeof(DiskStats) * num_disks);
     }
-    
-}   
+}
+
+
+
 int main(int argc, char * argv[]) {
 
     if (argc > 1 && strcmp(argv[1], "-d") == 0) {
-        int interval = DEFAULT_INTERVAL;
-        if (argc > 2) {
-            interval = atoi(argv[2]);
+        int read_rate = DEFAULT_INTERVAL;
+        int print_rate = DEFAULT_INTERVAL*10;
+        if (argc > 3) {
+            read_rate = atoi(argv[2]);
+            print_rate = atoi(argv[3]);
         }
-        print_dynamic_info(interval);
+        print_dynamic_info(read_rate, print_rate);
     } else {
         print_static_info();
     }

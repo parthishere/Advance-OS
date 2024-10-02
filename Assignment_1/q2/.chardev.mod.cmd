@@ -1,0 +1,1 @@
+savedcmd_/home/parth/Work/All_data/university/Advance_OS/Assignment/Assignment_1/q2/chardev.mod := printf '%s\n'   chardev.o | awk '!x[$$0]++ { print("/home/parth/Work/All_data/university/Advance_OS/Assignment/Assignment_1/q2/"$$0) }' > /home/parth/Work/All_data/university/Advance_OS/Assignment/Assignment_1/q2/chardev.mod
