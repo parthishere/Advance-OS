@@ -4,13 +4,15 @@
 #include <linux/errno.h>
 
 #define DEVICE_NAME "chardev"
+#define BUFFER_SIZE 100
+
 
 MODULE_AUTHOR("Parth Thakkar");
 MODULE_DESCRIPTION("chardev driver");
 MODULE_LICENSE("GPL");
 
 static int Major;
-
+int data[BUFFER_SIZE];
 
 /* Methods */
 

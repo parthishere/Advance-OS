@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "errno: %d\n", errno);
         exit(EXIT_FAILURE);
     }
-    printf("output file fd created %d\n", custom_file_fd);
+    printf("open file, file fd created %d\n", custom_file_fd);
 
     // Fork first child process
     // int ChildOnePID = fork();
@@ -74,14 +74,20 @@ int main(int argc, char *argv[])
         perror("write to file");
         exit(EXIT_FAILURE);
     }
-
+    printf("write to file \n ");
 
     
     if (read(custom_file_fd, file_buf, sizeof(file_buf)) == -1) {
         perror("read from file");
         exit(EXIT_FAILURE);
     }
+    printf("read from file \n ");
 
+    if (lseek(custom_file_fd, 8, SEEK_SET) == -1) {
+        perror("read from file");
+        exit(EXIT_FAILURE);
+    }
+    printf("seek to file \n ");
 
     // Terminate child processes
     // kill(ChildOnePID, SIGTERM);
@@ -92,6 +98,8 @@ int main(int argc, char *argv[])
     // waitpid(child2_pid, NULL, 0);
    
     
+    close(custom_file_fd);
+    printf("close file \n ");
 
     return EXIT_SUCCESS;
 }
