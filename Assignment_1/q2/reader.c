@@ -11,7 +11,7 @@ int main(int argc, char *argv[]) {
     int fd, bytes_read;
     char buffer[BUFFER_SIZE];
     
-    fd = open("/dev/chardev", O_RDONLY);
+    fd = open("/dev/chardev", O_RDWR, 0666);
     if (fd < 0) {
         perror("Failed to open the device");
         return errno;
@@ -20,13 +20,10 @@ int main(int argc, char *argv[]) {
     printf("Process %d started reading\n", getpid());
     
     while (1) {
-        bytes_read = read(fd, buffer, BUFFER_SIZE);
-        printf("Process %d read: %.*s\n", getpid(), bytes_read, buffer);
+        bytes_read = read(fd, buffer, 100);
+        printf("Process %d read: %*s\n", getpid(), bytes_read, buffer);
+        lseek(fd, 0, SEEK_SET);
         sleep(1);  // Slow down the reading process
-    }
-
-    if (bytes_read < 0) {
-        perror("Error reading the device");
     }
 
     close(fd);

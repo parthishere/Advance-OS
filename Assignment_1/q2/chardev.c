@@ -45,7 +45,7 @@ static ssize_t device_read(struct file *filp,
 
     unsigned long flags;
     spin_lock_irqsave(&your_lock, flags);
-    bytes_to_read = (*offset + length) < BUFFER_SIZE ? length : (BUFFER_SIZE - *offset);
+    bytes_to_read = ((*offset + length) < BUFFER_SIZE) ? length : (BUFFER_SIZE - *offset);
     
     bytes_not_copied = copy_to_user(buffer, &custom_chardrv_data[*offset], bytes_to_read);
     if(bytes_not_copied != 0){

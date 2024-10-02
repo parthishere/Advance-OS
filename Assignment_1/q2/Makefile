@@ -17,7 +17,7 @@ DEV_PATH := /dev/$(DEV_NAME)
 
 
 BUILD_DIR := .
-SRCS := reader.c writer.c
+SRCS := reader.c writer.c test.c
 TARGETS := $(SRCS:%.c=$(BUILD_DIR)/%)
 
 CC := gcc

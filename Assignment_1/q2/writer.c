@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
         }
         printf("Process %d wrote: %s", getpid(), buffer);
         sleep(1);  // Slow down the writing process
+        lseek(fd, 0, SEEK_SET);
         i++;
     }
 
