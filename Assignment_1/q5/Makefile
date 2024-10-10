@@ -1,5 +1,5 @@
 # Name of the module
-MODULE_NAME := chardev
+MODULE_NAME := syscall_interception
 
 # Object file(s) to be built
 obj-m := $(MODULE_NAME).o

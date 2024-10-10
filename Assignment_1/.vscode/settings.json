@@ -5,6 +5,7 @@
         "wait.h": "c",
         "types.h": "c",
         "fs.h": "c",
-        "cstdlib": "c"
+        "cstdlib": "c",
+        "unistd.h": "c"
     }
 }
