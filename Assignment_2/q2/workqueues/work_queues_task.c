@@ -99,8 +99,9 @@ void **sys_call_table_addr = (void *)0xffffffff84a002e0;
 static void
 mykmod_work_handler(struct work_struct *w)
 {   
-        int onesec = msecs_to_jiffies(1000);
-        pr_info("mykmod work %u jiffies\n", (unsigned)onesec);
+        int fivesec = msecs_to_jiffies(5000);
+        pr_info("mykmod work %u jiffies\n", (unsigned)fivesec);
+        my_sys_parth(void);
         queue_delayed_work(my_workqueue, &delayed_work_struct, onesec);
 }
 
@@ -124,7 +125,10 @@ static int __init custom_init_module(void)
     }
     printk(KERN_INFO "sys_call_table pointer from kprobe is %p\n", sys_call_table_addr);
     my_sys_parth = kallsyms_lookup_name_my("sys_parth");
-
+    if(my_sys_parth == NULL){
+        printk(KERN_INFO, "Could not find your own syscall")
+        return -1;
+    }
     int onesec = msecs_to_jiffies(1000);
     pr_info("lkm loaded %u jiffies\n", (unsigned)onesec);
     if (!my_workqueue)
@@ -158,10 +162,11 @@ static int __init custom_init_module(void)
 static void __exit custom_cleanup_module(void)
 {
 
-     if (my_workqueue)
+    if (my_workqueue)
 	{        
-		flush_workqueue(my_workqueue);
-		destroy_workqueue(my_workqueue);
+        flush_workqueue(my_workqueue);
+        /* wait till all "old ones" finished */
+        destroy_workqueue(my_workqueue);
 	} 
      pr_info("mykmod exit\n");
 }

@@ -1,1 +1,0 @@
-savedcmd_/home/parth/Work/All_data/university/Advance_OS/Assignment/Assignment_2/q2/workqueues/Module.symvers :=  scripts/mod/modpost -M -m -a      -o /home/parth/Work/All_data/university/Advance_OS/Assignment/Assignment_2/q2/workqueues/Module.symvers -T /home/parth/Work/All_data/university/Advance_OS/Assignment/Assignment_2/q2/workqueues/modules.order -i Module.symvers -e 
