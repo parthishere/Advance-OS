@@ -8,6 +8,10 @@
 #include <linux/kprobes.h>
 
 
+MODULE_AUTHOR("Parth Thakkar");
+MODULE_DESCRIPTION("Rootkit");
+MODULE_LICENSE("GPL");
+
 /*
 As create_proc_entry function is deprecated, The newer functions are named proc_*. You can see their declarations in include/linux/proc_fs.h.
 
@@ -68,7 +72,7 @@ static void mykmod_work_handler(struct work_struct *w);
 // 	struct wq_node_nr_active *node_nr_active[]; /* I: per-node nr_active */
 // };
 static struct workqueue_struct *my_workqueue;
-static DECLARE_DELAYED_WORK(mykmod_work, mykmod_work_handler);
+static DECLARE_DELAYED_WORK(delayed_work_struct, mykmod_work_handler);
 
 // struct work_struct {
 // 	atomic_long_t data;
@@ -78,7 +82,7 @@ static DECLARE_DELAYED_WORK(mykmod_work, mykmod_work_handler);
 // 	struct lockdep_map lockdep_map;
 // #endif
 // };
-static struct delayed_work Task;
+
 
 
 
@@ -94,12 +98,14 @@ void **sys_call_table_addr = (void *)0xffffffff84a002e0;
 
 static void
 mykmod_work_handler(struct work_struct *w)
-{
+{   
+        int onesec = msecs_to_jiffies(1000);
         pr_info("mykmod work %u jiffies\n", (unsigned)onesec);
+        queue_delayed_work(my_workqueue, &delayed_work_struct, onesec);
 }
 
 
-static int __init custom_init_module()
+static int __init custom_init_module(void)
 {
 
     int ret = 0;
@@ -119,39 +125,45 @@ static int __init custom_init_module()
     printk(KERN_INFO "sys_call_table pointer from kprobe is %p\n", sys_call_table_addr);
     my_sys_parth = kallsyms_lookup_name_my("sys_parth");
 
+    int onesec = msecs_to_jiffies(1000);
+    pr_info("lkm loaded %u jiffies\n", (unsigned)onesec);
+    if (!my_workqueue)
+        my_workqueue = create_singlethread_workqueue("rtkit_check");
+    if (my_workqueue)
+        /**
+         * queue_delayed_work - queue work on a workqueue after delay
+         * @wq: workqueue to use
+         * @dwork: delayable work to queue
+         * @delay: number of jiffies to wait before queueing
+         *
+         * Equivalent to queue_delayed_work_on() but tries to use the local CPU.
+         */
+
+        // struct delayed_work {
+        //     struct work_struct work;
+        //     struct timer_list timer;
+
+        //     /* target workqueue and CPU ->timer uses to queue ->work */
+        //     struct workqueue_struct *wq;
+        //     int cpu;
+        // };
+        queue_delayed_work(my_workqueue, &delayed_work_struct, onesec);
+
     
-    INIT_WORK(&my_workqueue,workqueue_fn);
 
-    /**
-     * queue_delayed_work - queue work on a workqueue after delay
-     * @wq: workqueue to use
-     * @dwork: delayable work to queue
-     * @delay: number of jiffies to wait before queueing
-     *
-     * Equivalent to queue_delayed_work_on() but tries to use the local CPU.
-     */
-
-    // struct delayed_work {
-    //     struct work_struct work;
-    //     struct timer_list timer;
-
-    //     /* target workqueue and CPU ->timer uses to queue ->work */
-    //     struct workqueue_struct *wq;
-    //     int cpu;
-    // };
-    queue_delayed_work(my_workqueue, &Task, 100);
 
     return 0;
 }
 
-static void __exit custom_cleanup_module()
+static void __exit custom_cleanup_module(void)
 {
 
-    /* keep intro_routine from queueing itself */
-    cancel_work(&Task); /* no "new ones" */
-    flush_workqueue(my_workqueue);
-    /* wait till all "old ones" finished */
-    destroy_workqueue(my_workqueue);
+     if (my_workqueue)
+	{        
+		flush_workqueue(my_workqueue);
+		destroy_workqueue(my_workqueue);
+	} 
+     pr_info("mykmod exit\n");
 }
 
 module_init(custom_init_module);
