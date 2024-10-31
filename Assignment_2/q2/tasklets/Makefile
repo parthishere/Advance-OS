@@ -1,5 +1,5 @@
 # Name of the module
-MODULE_NAME := work_queues_task
+MODULE_NAME := char_drv
 
 # Object file(s) to be built
 obj-m := $(MODULE_NAME).o

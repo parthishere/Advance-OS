@@ -1,0 +1,1 @@
+savedcmd_/home/parth/Work/All_data/university/Advance_OS/Assignment/Assignment_2/q2/tasklets/char_drv.mod := printf '%s\n'   char_drv.o | awk '!x[$$0]++ { print("/home/parth/Work/All_data/university/Advance_OS/Assignment/Assignment_2/q2/tasklets/"$$0) }' > /home/parth/Work/All_data/university/Advance_OS/Assignment/Assignment_2/q2/tasklets/char_drv.mod
