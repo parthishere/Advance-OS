@@ -90,7 +90,8 @@ static struct kprobe kp = {
     .symbol_name = "kallsyms_lookup_name"
 };
 
-asmlinkage long (*my_sys_parth)(void); 
+typedef asmlinkage long (*my_sys_parth_t)(void); 
+my_sys_parth_t my_sys_parth;
 
 uint8_t was_writable = 0;
 void **sys_call_table_addr = (void *)0xffffffff84a002e0;
@@ -101,8 +102,8 @@ mykmod_work_handler(struct work_struct *w)
 {   
         int fivesec = msecs_to_jiffies(5000);
         pr_info("mykmod work %u jiffies\n", (unsigned)fivesec);
-        my_sys_parth(void);
-        queue_delayed_work(my_workqueue, &delayed_work_struct, onesec);
+        my_sys_parth();
+        queue_delayed_work(my_workqueue, &delayed_work_struct, fivesec);
 }
 
 
@@ -126,10 +127,11 @@ static int __init custom_init_module(void)
     printk(KERN_INFO "sys_call_table pointer from kprobe is %p\n", sys_call_table_addr);
     my_sys_parth = kallsyms_lookup_name_my("sys_parth");
     if(my_sys_parth == NULL){
-        printk(KERN_INFO, "Could not find your own syscall")
+        printk(KERN_INFO, "Could not find your own syscall");
         return -1;
     }
     int onesec = msecs_to_jiffies(1000);
+
     pr_info("lkm loaded %u jiffies\n", (unsigned)onesec);
     if (!my_workqueue)
         my_workqueue = create_singlethread_workqueue("rtkit_check");
