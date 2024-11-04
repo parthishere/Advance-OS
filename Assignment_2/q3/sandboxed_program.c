@@ -127,7 +127,10 @@ void ebpf_seccomp()
         BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (offsetof(struct seccomp_data, nr))),
 
         // Allow specific syscalls
-        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_write, 0, 1),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_write, 0, 3),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (offsetof(struct seccomp_data, args[2]))), // LOADING SIZE
+        BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 100, 0, 1),                               // IF TRUE SKIP ZERO ELSE SKIP ONE
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL),
         BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
 
         BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_read, 0, 1),
@@ -213,7 +216,7 @@ int main(int argc, char *argv[])
     // fclose(test_file);
     lseek(test_file_fd, 0, SEEK_END);
     const char *log_entry = "simple append to a file \n";
-    char buffer_to_write[100];
+    char buffer_to_write[90];
     int how_many_bytes_written = snprintf(buffer_to_write, "%s", log_entry);
     printf("%s -- %d \n", buffer_to_write, how_many_bytes_written);
     write(test_file_fd, buffer_to_write, how_many_bytes_written);
