@@ -216,10 +216,10 @@ int main(int argc, char *argv[])
     // fclose(test_file);
     lseek(test_file_fd, 0, SEEK_END);
     const char *log_entry = "simple append to a file \n";
-    char buffer_to_write[90];
+    char buffer_to_write[103];
     int how_many_bytes_written = snprintf(buffer_to_write, "%s", log_entry);
     printf("%s -- %d \n", buffer_to_write, how_many_bytes_written);
-    write(test_file_fd, buffer_to_write, how_many_bytes_written);
+    write(test_file_fd, buffer_to_write, 99); // << ==  CHANGE THIS VALUE TO > 100 
 
     // unauthorize syscall
     if (argv[3] == "2")
