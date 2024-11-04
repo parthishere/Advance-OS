@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <linux/filter.h>
 #include <linux/audit.h>
-#include <stddef.h>  
+#include <stddef.h>
 
 // // Template for creating security rules:
 // #define MY_SECURITY_CHECK(what_to_check)
@@ -39,7 +39,7 @@
 // 	__u64 args[6];
 // };
 
-int part_to_run;
+int part_to_run, type_to_run;
 scmp_filter_ctx ctx;
 
 void graceful_exit(int rc)
@@ -70,6 +70,8 @@ void libseccomp_setup(int fd)
 
     /* Add allowed system calls to the BPF program */
     // int seccomp_rule_add(scmp_filter_ctx ctx, uint32_t action, int syscall, unsigned int arg_cnt, ...);
+    // seccomp_rule_add(ctx, SCMP_ACT_KILL, SCMP_SYS(open), 1, SCMP_A2(SCMP_CMP_EQ, O_CREAT)); // kill if we create a file
+
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 1, SCMP_A0(SCMP_CMP_EQ, fd)); // SCMP_A0(enum scmp_compare op, ...);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 1, SCMP_A0(SCMP_CMP_EQ, 1));
 
@@ -127,32 +129,75 @@ void ebpf_seccomp()
         // Allow specific syscalls
         BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_write, 0, 1),
         BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
-        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (offsetof(struct seccomp_data, args[2]))), // LOADING SIZE
-        BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 100, 1, 0), // IF TRUE SKIP ONE ELSE SKIP ZERO
-        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL),
 
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_read, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_lseek, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_close, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_exit_group, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
 
         // Kill process if syscall not allowed
         BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL)
 
     };
+
+    struct sock_fprog prog = {
+        .len = (unsigned short)(sizeof(filter)/sizeof(filter[0])),
+        .filter = filter,
+    };
+
+    // execve(_) will not grant any new privileges
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
+        perror("prctl(PR_SET_NO_NEW_PRIVS)");
+        exit(EXIT_FAILURE);
+    }
+    
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
+        perror("prctl(PR_SET_SECCOMP)");
+        exit(EXIT_FAILURE);
+    }
 }
 
 int main(int argc, char *argv[])
 {
 
-    if (argc != 2)
+    if (argc != 3)
     {
-        printf("Usage : ./sandboxed_program <part-of-program-to-run 1,2,3> %d\n", argc);
+        printf("Usage : ./sandboxed_program <part-of-program-to-run 1,2,3> <type of filter> %d\n", argc);
+        printf(" 1:  unauthorize syscall, 2 create a new file, 3 open file not included in your jailed environmnet \n");
+        printf(" 1: normal prctl, 2: lib-seccomp, 3: bpf-seccomp\n");
         return -1;
     }
     else
     {
-        printf("hellow %s\n", argv[1]);
         part_to_run = atoi(argv[1]);
+        type_to_run = atoi(argv[2]);
     }
     int test_file_fd = open("test.txt", 0666);
 
+    switch(type_to_run){
+        case 1:
+        printf("normal prctl\n");
+            normal_seccomp();
+            break;
+        case 2:
+        printf("libseccomp\n");
+            libseccomp_setup(test_file_fd);
+            break;
+        case 3:
+            printf("EBPF \n");
+            ebpf_seccomp();
+            break;
+        default:
+            perror("wrong choice");
+            exit(EXIT_FAILURE);
+    }
     // if (test_file == NULL)
     // {
     //     printf("Error opening file");
