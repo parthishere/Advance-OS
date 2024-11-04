@@ -4,6 +4,7 @@
         "fs.h": "c",
         "seccomp.h": "c",
         "prctl.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "unistd.h": "c"
     }
 }

@@ -67,6 +67,8 @@ void advanced_seccomp(void) {
     }
     
     // Allow open only for specific files
+
+    
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(open), 1,
                      SCMP_A0(SCMP_CMP_EQ, (scmp_datum_t)"/allowed/path"));
     
@@ -86,6 +88,8 @@ void advanced_seccomp(void) {
 
 // Seccomp with BPF filters directly
 void bpf_seccomp(void) {
+
+    
     struct sock_filter filter[] = {
         // Load architecture
         BPF_STMT(BPF_LD | BPF_W | BPF_ABS, 

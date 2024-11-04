@@ -1,11 +1,43 @@
 #include <stdio.h>
-#include <linux/seccomp.h>  /* Definition of PR_* constants */
+#include <linux/seccomp.h> /* Definition of PR_* constants */
 #include <seccomp.h>
-#include <linux/prctl.h>  /* Definition of PR_* constants */
+#include <linux/prctl.h> /* Definition of PR_* constants */
 #include <sys/prctl.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <linux/filter.h>
+#include <linux/audit.h>
+#include <stddef.h>  
+
+// // Template for creating security rules:
+// #define MY_SECURITY_CHECK(what_to_check)
+//     LOAD_VALUE(what_to_check),
+//     CHECK_CONDITION(what_to_check),
+//     ACTION_IF_FAILS
+
+// BPF_LD+BPF_W+BPF_ABS  // Load a 32-bit word (W) from absolute offset (ABS)
+// arch_nr                // Offset in seccomp_data where architecture is stored
+// BPF_JMP+BPF_JEQ+BPF_K // Jump if equal (JEQ) to constant (K)
+// ARCH_NR               // The architecture we want (e.g., AUDIT_ARCH_X86_64)
+// 1, 0                  // If equal skip 1 instruction, if not skip 0
+// SECCOMP_RET_KILL      // Return value that kills the process
+
+// /**
+//  * struct seccomp_data - the format the BPF program executes over.
+//  * @nr: the system call number
+//  * @arch: indicates system call convention as an AUDIT_ARCH_* value
+//  *        as defined in <linux/audit.h>.
+//  * @instruction_pointer: at the time of the system call.
+//  * @args: up to 6 system call arguments always stored as 64-bit values
+//  *        regardless of the architecture.
+//  */
+// struct seccomp_data {
+// 	int nr;
+// 	__u32 arch;
+// 	__u64 instruction_pointer;
+// 	__u64 args[6];
+// };
 
 int part_to_run;
 scmp_filter_ctx ctx;
@@ -16,49 +48,110 @@ void graceful_exit(int rc)
     exit(rc);
 }
 
-int main(int argc, char *argv[])
+void normal_seccomp()
+{
+    printf("Strict mode enabled - only read/write/exit allowed\n");
+
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_STRICT) != NULL)
+    {
+        perror("prctl(SECCOMP_MODE_STRICT)");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void libseccomp_setup(int fd)
 {
     int rc;
-
-    if(argc != 2){
-        printf("Usage : ./sandboxed_program <part-of-program-to-run 1,2,3> %d\n", argc);
-        return -1;
-    }
-    else{
-        printf("hellow %s\n", argv[1]);
-        part_to_run = atoi(argv[1]);
-    }
-    int test_file_fd = open("test.txt", 0666);
-
-    if ((ctx = seccomp_init(SCMP_ACT_KILL)) == NULL) {
-            graceful_exit(1);
+    if ((ctx = seccomp_init(SCMP_ACT_KILL)) == NULL)
+    {
+        graceful_exit(1);
     }
     printf("Strict mode enabled - only read/write/exit allowed\n");
 
     /* Add allowed system calls to the BPF program */
-    if ((rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fstat), 0)) != 0) {
-            graceful_exit(1);
-    }
-    if ((rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 0)) != 0) {
-            graceful_exit(1);
-    }
-    if ((rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(exit_group), 0)) != 0) {
-            graceful_exit(1);
-    }
-    if ((rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(read), 0)) != 0) {
-            graceful_exit(1);
-    }
-    if ((rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(lseek), 0)) != 0) {
-            graceful_exit(1);
-    }
-    if ((rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(close), 0)) != 0) {
-            graceful_exit(1);
-    }
+    // int seccomp_rule_add(scmp_filter_ctx ctx, uint32_t action, int syscall, unsigned int arg_cnt, ...);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 1, SCMP_A0(SCMP_CMP_EQ, fd)); // SCMP_A0(enum scmp_compare op, ...);
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(write), 1, SCMP_A0(SCMP_CMP_EQ, 1));
+
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(exit_group), 0);
+
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(read), 1, SCMP_A0(SCMP_CMP_EQ, fd));
+
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(lseek), 1, SCMP_A0(SCMP_CMP_EQ, fd));
+
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(close), 0);
 
     /* Load the BPF program for the current context into the kernel */
-    if ((rc = seccomp_load(ctx)) != 0) {
-            graceful_exit(1);
+    if ((rc = seccomp_load(ctx)) != 0)
+    {
+        graceful_exit(1);
     }
+}
+
+void ebpf_seccomp()
+{
+    // What each part means:
+    // BPF_LD+BPF_W+BPF_ABS  // Load a 32-bit word (W) from absolute offset (ABS)
+    // arch_nr                // Offset in seccomp_data where architecture is stored
+    // BPF_JMP+BPF_JEQ+BPF_K // Jump if equal (JEQ) to constant (K)
+    // ARCH_NR               // The architecture we want (e.g., AUDIT_ARCH_X86_64)
+    // 1, 0                  // If equal skip 1 instruction, if not skip 0
+    // SECCOMP_RET_KILL      // Return value that kills the process
+
+    //     #define		BPF_ADD		0x00
+    // #define		BPF_SUB		0x10
+    // #define		BPF_MUL		0x20
+    // #define		BPF_DIV		0x30
+    // #define		BPF_OR		0x40
+    // #define		BPF_AND		0x50
+    // #define		BPF_LSH		0x60
+    // #define		BPF_RSH		0x70
+    // #define		BPF_NEG		0x80
+    // #define		BPF_MOD		0x90
+    // #define		BPF_XOR		0xa0
+
+    // #define		BPF_JA		0x00
+    // #define		BPF_JEQ		0x10
+    // #define		BPF_JGT		0x20
+    // #define		BPF_JGE		0x30
+    // #define		BPF_JSET        0x40
+    struct sock_filter filter[] = {
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (offsetof(struct seccomp_data, arch))),
+
+        // Check architecture
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL),
+
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (offsetof(struct seccomp_data, nr))),
+
+        // Allow specific syscalls
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_write, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, (offsetof(struct seccomp_data, args[2]))), // LOADING SIZE
+        BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 100, 1, 0), // IF TRUE SKIP ONE ELSE SKIP ZERO
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL),
+
+
+        // Kill process if syscall not allowed
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL)
+
+    };
+}
+
+int main(int argc, char *argv[])
+{
+
+    if (argc != 2)
+    {
+        printf("Usage : ./sandboxed_program <part-of-program-to-run 1,2,3> %d\n", argc);
+        return -1;
+    }
+    else
+    {
+        printf("hellow %s\n", argv[1]);
+        part_to_run = atoi(argv[1]);
+    }
+    int test_file_fd = open("test.txt", 0666);
 
     // if (test_file == NULL)
     // {
@@ -81,13 +174,12 @@ int main(int argc, char *argv[])
     write(test_file_fd, buffer_to_write, how_many_bytes_written);
 
     // unauthorize syscall
-    if(argv[3] == "2"){
-        
+    if (argv[3] == "2")
+    {
     }
 
-// fstat
+    // fstat
     // creat a new file
-
 
     // open file not included in your jailed environmnet
 
