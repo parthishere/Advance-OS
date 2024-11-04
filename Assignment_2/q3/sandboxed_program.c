@@ -201,11 +201,7 @@ int main(int argc, char *argv[])
             perror("wrong choice");
             exit(EXIT_FAILURE);
     }
-    // if (test_file == NULL)
-    // {
-    //     printf("Error opening file");
-    //     return 1;
-    // }
+
 
     char ch;
     while (read(test_file_fd, &ch, 1) != 0)
