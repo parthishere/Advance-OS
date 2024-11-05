@@ -1,0 +1,3 @@
+libzip-dev
+
+-lzip
