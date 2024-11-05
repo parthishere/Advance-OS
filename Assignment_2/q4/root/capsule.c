@@ -9,16 +9,19 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <linux/sched.h>    /* Definition of struct clone_args */
-#include <sched.h>          /* Definition of CLONE_* constants */
-#include <sys/syscall.h>    /* Definition of SYS_* constants */
+#include <linux/sched.h> /* Definition of struct clone_args */
+#include <sched.h>       /* Definition of CLONE_* constants */
+#include <sys/syscall.h> /* Definition of SYS_* constants */
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
 
+#include <errno.h> // for errno
 
 #define STACK_SIZE (1024 * 1024)
 #define MOUNT_DIR "."
+
+#define MB_TO_BYTES(x) (x * 1024 * 1024)
 
 struct child_config
 {
@@ -26,6 +29,50 @@ struct child_config
     char *hostname;
     char *mount_dir;
 };
+
+typedef enum
+{
+    BLKIO,
+    CPU,
+    CPUACCT,
+    CPUSET,
+    DEVICES,
+    FREEZER,
+    MEMORY,
+    NET_CLS,
+    NET_PRIO,
+    NS,
+    PERF_EVENT
+} subsystems_t;
+
+const char *subsystem_name(subsystems_t ss)
+{
+    switch (ss)
+    {
+    case BLKIO:
+        return "blkio";
+    case CPU:
+        return "cpu";
+    case CPUSET:
+        return "cpuset";
+    case FREEZER:
+        return "freezer";
+    case CPUACCT:
+        return "Cpuacct";
+    case NS:
+        return "ns";
+    case MEMORY:
+        return "memory";
+    case NET_CLS:
+        return "net_cls";
+    case NET_PRIO:
+        return "net_prio";
+    case DEVICES:
+        return "devices";
+    default:
+        return "cpu";
+    }
+}
 
 // Function to extract zip file
 static int extract_zip(const char *zip_path, const char *target_dir)
@@ -89,7 +136,7 @@ static int extract_zip(const char *zip_path, const char *target_dir)
         {
             char path[100];
             snprintf(path, sizeof(path), "%s/%s", target_dir, sb.name);
-
+            printf("File: %s, extracting to %s \n", sb.name, path);
             // to make directory
             if (sb.name[strlen(sb.name) - 1] == '/')
             {
@@ -168,19 +215,205 @@ static int extract_zip(const char *zip_path, const char *target_dir)
     return 0;
 }
 
-void set_resource_limits()
+// Function to create a new cgroup
+int create_cgroup(const char *subsystem, const char *group)
 {
+    char path[1024];
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/%s", subsystem, group);
+
+    if (mkdir(path, 0755) < 0)
+    {
+        // errno is global var // bad thing to use although
+        if (errno == EEXIST)
+        {
+            printf("Cgroup already exists !! \n");
+        }
+        else
+        {
+            perror("Failed to create cgroup");
+            return -1;
+        }
+    }
+    return 0;
+}
+
+// Function to add process to cgroup
+int add_to_cgroup(const char *subsystem, const char *group, pid_t pid)
+{
+    char path[1024];
+    char pid_str[32];
+    int fd;
+
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/%s/tasks", subsystem, group);
+    snprintf(pid_str, sizeof(pid_str), "%d", pid);
+
+    fd = open(path, O_WRONLY);
+    if (fd == -1)
+    {
+        perror("Failed to open tasks file");
+        return -1;
+    }
+
+    if (write(fd, pid_str, strlen(pid_str)) == -1)
+    {
+        perror("Failed to add process to cgroup");
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+    return 0;
+}
+
+// Function to remove cgroup
+int remove_cgroup(const char *subsystem, const char *group)
+{
+    char path[1024];
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/%s", subsystem, group);
+
+    if (rmdir(path) == -1)
+    {
+        perror("Failed to remove cgroup");
+        return -1;
+    }
+    return 0;
+}
+
+// Function to set memory limit
+int set_memory_limit(const char *group, unsigned long limit_in_bytes)
+{
+    char path[1024];
+    char value[32];
+    int fd;
+
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/memory/%s/memory.limit_in_bytes", group);
+    snprintf(value, sizeof(value), "%lu", limit_in_bytes);
+    printf("Memory limit in bytes set %lu in controller memory in file %s\n ", limit_in_bytes, path);
+
+    fd = open(path, O_WRONLY);
+    if (fd == -1)
+    {
+        perror("Failed to open memory limit file");
+        return -1;
+    }
+
+    if (write(fd, value, strlen(value)) == -1)
+    {
+        perror("Failed to set memory limit");
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+    return 0;
+}
+
+// Function to set memory limit
+int set_cpu_limit(const char *group, unsigned long limit_in_percent)
+{
+    char path[1024];
+    char value[32];
+    int fd;
+    // cpu.rt_period_us="1000000";
+    // cpu.rt_runtime_us="500000";
+
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/cpu/%s/memory.limit_in_bytes", group);
+    snprintf(value, sizeof(value), "%lu", limit_in_percent);
+    printf("CPU limit set %lu, in controller cpu in file %s\n ", limit_in_percent, path);
+
+    fd = open(path, O_WRONLY);
+    if (fd == -1)
+    {
+        perror("Failed to open memory limit file");
+        return -1;
+    }
+
+    if (write(fd, value, strlen(value)) == -1)
+    {
+        perror("Failed to set memory limit");
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+    return 0;
+}
+
+// Function to set memory limit
+int set_io_limit(const char *group, unsigned long limit_mb_per_sec)
+{
+    char path[1024];
+    char value[32];
+    int fd;
+
+    // blkio.throttle.read_bps_device, blkio.throttle.write_bps_device
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/blkio/%s/blkio.throttle.read_bps_device", group);
+    snprintf(value, sizeof(value), "%lu", limit_mb_per_sec);
+    printf("IO limit set %lu, in controller blkio in file %s\n ", limit_mb_per_sec, path);
+
+    fd = open(path, O_WRONLY);
+    if (fd == -1)
+    {
+        perror("Failed to open memory limit file");
+        return -1;
+    }
+
+    if (write(fd, value, strlen(value)) == -1)
+    {
+        perror("Failed to set memory limit");
+        close(fd);
+        return -1;
+    }
+    close(fd);
+
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/blkio/%s/blkio.throttle.write_bps_device", group);
+    snprintf(value, sizeof(value), "%lu", limit_mb_per_sec);
+    printf("IO limit set %lu, in controller blkio in file %s\n ", limit_mb_per_sec, path);
+    fd = open(path, O_WRONLY);
+    if (fd == -1)
+    {
+        perror("Failed to open memory limit file");
+        return -1;
+    }
+
+    if (write(fd, value, strlen(value)) == -1)
+    {
+        perror("Failed to set memory limit");
+        close(fd);
+        return -1;
+    }
+    close(fd);
+    return 0;
+}
+
+void set_resource_limits(const char *group_name)
+{
+
+    create_cgroup(subsystem_name(CPU), group_name);
+    create_cgroup(subsystem_name(MEMORY), group_name);
+    create_cgroup(subsystem_name(IO), group_name);
+    set_cpu_limit(group_name, 5);
+    set_memory_limit(group_name, MB_TO_BYTES(2));
+    set_io_limit(group_name, 1);
 }
 
 int setup_mounts()
 {
-    setenv("capsule_env", "/lib", 0);
+    if (mount("proc", "/proc", "proc", 0, NULL) == -1)
+    {
+        perror("mount proc");
+        exit(EXIT_FAILURE);
+    }
     return 1;
 }
 
 int child_function(void *arg)
 {
-    struct child_config * config = arg;
+
+    const char *group_name = "mygroup";
+    pid_t pid = getpid();
+
+    struct child_config *config = arg;
 
     if (sethostname(config->hostname, strlen(config->hostname)) == -1)
     {
@@ -188,6 +421,20 @@ int child_function(void *arg)
         exit(EXIT_FAILURE);
     }
 
+    // PID Namespace alone:
+    // - Has new PIDs
+    // - BUT can't see them properly
+    // - Because /proc shows host view
+
+    // Mount Namespace alone:
+    // - Can mount new /proc
+    // - BUT shows wrong PIDs
+    // - Because using host PID view
+
+    // Together:
+    // - New PIDs (PID NS)
+    // - Correct /proc view (Mount NS)
+    // - Everything works properly!
     // Setup mounts
     if (setup_mounts() == -1)
     {
@@ -254,7 +501,7 @@ int main(int argc, char *argv[])
     int flags = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
                 CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWUSER;
 
-    pid_t child_pid = clone(child_function, stack+STACK_SIZE, flags | SIGCHLD, &ch_config);
+    pid_t child_pid = clone(child_function, stack + STACK_SIZE, flags | SIGCHLD, &ch_config);
     if (child_pid == -1)
     {
         perror("clone");
