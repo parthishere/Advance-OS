@@ -230,7 +230,7 @@ static int extract_zip(const char *zip_path, const char *target_dir)
 
 
 // Function to create a new cgroup
-int create_cgroup(const char *subsystem, const char *group, pid_t pid)
+int create_cgroup(const char *group)
 {
     const char * controllers = "+cpuset +cpu +io +memory +io +pids +rdma";
     char path[1024];
@@ -238,7 +238,7 @@ int create_cgroup(const char *subsystem, const char *group, pid_t pid)
     int fd;
 
 
-    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s", group);
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/", group);
     DEBUG_PRINT("Creating cgroup: group=%s", path);
 
     if (mkdir(path, 0755) < 0)
@@ -261,7 +261,7 @@ int create_cgroup(const char *subsystem, const char *group, pid_t pid)
     
     snprintf(path, sizeof(path), "/sys/fs/cgroup/cgroup.subtree_control");
 
-    fd = open(path, O_WRONLY);
+    fd = open(path, O_WRONLY | O_CREAT);
     if (fd == -1)
     {
         perror("Failed to open tasks file");
@@ -277,9 +277,9 @@ int create_cgroup(const char *subsystem, const char *group, pid_t pid)
     close(fd);
 
     snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/cgroups.proc", group);
-    snprintf(pid_str, sizeof(pid_str), "%d", pid);
+    snprintf(pid_str, sizeof(pid_str), "%d", getpid());
 
-    fd = open(path, O_WRONLY);
+    fd = open(path, O_WRONLY | O_CREAT);
     if (fd == -1)
     {
         perror("Failed to open tasks file");
@@ -324,7 +324,7 @@ int set_memory_limit(const char *group, unsigned long limit_in_bytes)
     snprintf(value, sizeof(value), "%lu", limit_in_bytes);
     printf("Memory limit in bytes set %lu in controller memory in file %s\n ", limit_in_bytes, path);
 
-    fd = open(path, O_WRONLY);
+    fd = open(path, O_WRONLY | O_CREAT);
     if (fd == -1)
     {
         perror("Failed to open memory limit file");
@@ -355,7 +355,7 @@ int set_cpu_limit(const char *group, unsigned long limit_in_percent)
     snprintf(value, sizeof(value), "%d 100000", (limit_in_percent * 100000 / 100));
     printf("CPU limit set %lu, in controller cpu in file %s\n ", limit_in_percent, path);
 
-    fd = open(path, O_WRONLY);
+    fd = open(path, O_WRONLY | O_CREAT);
     if (fd == -1)
     {
         perror("Failed to open cpu limit file");
@@ -382,14 +382,14 @@ int set_io_limit(const char *group, unsigned long limit_mb_per_sec)
     int major = 259, minor = 0;
     
     // blkio.throttle.read_bps_device, blkio.throttle.write_bps_device
-    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/io", group);
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/io.max", group);
     snprintf(value, sizeof(value), "%d:%d rbps=%lu wbps=%lu", major, minor, (limit_mb_per_sec * 1024 * 1024), (limit_mb_per_sec * 1024 * 1024));
 
     printf("IO limit set %lu, in controller blkio in file %s\n ", limit_mb_per_sec, path);
 
     
 
-    fd = open(path, O_WRONLY);
+    fd = open(path, O_WRONLY | O_CREAT);
     if (fd == -1)
     {
         perror("Failed to open memory limit file");
@@ -404,23 +404,23 @@ int set_io_limit(const char *group, unsigned long limit_mb_per_sec)
     }
     close(fd);
 
-    snprintf(path, sizeof(path), "/sys/fs/cgroup/blkio/%s/blkio.throttle.write_bps_device", group);
-    snprintf(value, sizeof(value), "%lu", limit_mb_per_sec);
-    printf("IO limit set %lu, in controller blkio in file %s\n ", limit_mb_per_sec, path);
-    fd = open(path, O_WRONLY);
-    if (fd == -1)
-    {
-        perror("Failed to open memory limit file");
-        return -1;
-    }
+    // snprintf(path, sizeof(path), "/sys/fs/cgroup/blkio/%s/blkio.throttle.write_bps_device", group);
+    // snprintf(value, sizeof(value), "%lu", limit_mb_per_sec);
+    // printf("IO limit set %lu, in controller blkio in file %s\n ", limit_mb_per_sec, path);
+    // fd = open(path, O_WRONLY | O_CREAT);
+    // if (fd == -1)
+    // {
+    //     perror("Failed to open memory limit file");
+    //     return -1;
+    // }
 
-    if (write(fd, value, strlen(value)) == -1)
-    {
-        perror("Failed to set memory limit");
-        close(fd);
-        return -1;
-    }
-    close(fd);
+    // if (write(fd, value, strlen(value)) == -1)
+    // {
+    //     perror("Failed to set memory limit");
+    //     close(fd);
+    //     return -1;
+    // }
+    // close(fd);
     return 0;
 }
 
@@ -438,8 +438,15 @@ void set_resource_limits(const char *group_name)
     INFO_PRINT("Resource limits setup completed");
     INFO_PRINT("Cross checking resources \n");
 
+
     
 }
+
+
+
+
+
+
 
 int setup_mounts()
 {
@@ -450,6 +457,25 @@ int setup_mounts()
         exit(EXIT_FAILURE);
     }
     INFO_PRINT("Successfully mounted proc filesystem");
+    
+    // if (mount("sysfs", "/sys", "sysfs", 0, NULL) == -1) {
+    //     ERROR_PRINT("Failed to mount sysfs: %s", strerror(errno));
+    //     return -1;
+    // }
+    // INFO_PRINT("Mounted sysfs");
+
+    // system("mount | grep cgroup");
+    // system("cat /proc/self/cgroup");
+    // system("ls -l /sys/fs/cgroup/");
+    // // // Mount cgroup
+    // if (mount("cgroup2", "/sys/fs/cgroup", "cgroup2", 0, NULL) == -1) {
+        
+    //     ERROR_PRINT("Failed to mount cgroup: %s", strerror(errno));
+    //     return -1;
+    // }
+    // INFO_PRINT("Mounted cgroup filesystem");
+
+
     return 1;
 }
 
@@ -458,7 +484,7 @@ int child_function(void *arg)
 
     
 
-    const char *group_name = "mygroup";
+   
     pid_t pid = getpid();
 
     struct child_config *config = arg;
@@ -512,8 +538,7 @@ int child_function(void *arg)
         exit(EXIT_FAILURE);
     }
 
-    // Set resource limits
-    set_resource_limits(group_name);
+    
 
     // Execute shell
     INFO_PRINT("Launching shell");
@@ -525,6 +550,8 @@ int child_function(void *arg)
 
 int main(int argc, char *argv[])
 {   
+    const char *group_name = "container";
+
     INFO_PRINT("Capsule initialization started");
     DEBUG_PRINT("Process ID: %d", getpid());
 
@@ -551,6 +578,10 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    create_cgroup();
+    // Set resource limits
+    set_resource_limits(group_name);
+
     // Allocate stack for child
     DEBUG_PRINT("Allocating stack (size: %d bytes)", STACK_SIZE);
     char *stack = malloc(STACK_SIZE);
@@ -562,7 +593,7 @@ int main(int argc, char *argv[])
 
     // Create child process with new namespaces
     int flags = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
-                CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWUSER;
+                CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWCGROUP;
                 DEBUG_PRINT("Namespace flags configured: 0x%x", flags);
     INFO_PRINT("Creating new namespaces");
     DEBUG_PRINT("  Mount namespace (CLONE_NEWNS)");
