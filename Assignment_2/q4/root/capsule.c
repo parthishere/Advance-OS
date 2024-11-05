@@ -261,7 +261,7 @@ int create_cgroup(const char *group)
     
     snprintf(path, sizeof(path), "/sys/fs/cgroup/cgroup.subtree_control");
 
-    fd = open(path, O_WRONLY | O_CREAT);
+    fd = open(path, O_WRONLY);
     if (fd == -1)
     {
         perror("Failed to open tasks file");
@@ -276,10 +276,10 @@ int create_cgroup(const char *group)
     }
     close(fd);
 
-    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/cgroups.proc", group);
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/cgroup.procs", group);
     snprintf(pid_str, sizeof(pid_str), "%d", getpid());
 
-    fd = open(path, O_WRONLY | O_CREAT);
+    fd = open(path, O_WRONLY);
     if (fd == -1)
     {
         perror("Failed to open tasks file");
@@ -324,7 +324,7 @@ int set_memory_limit(const char *group, unsigned long limit_in_bytes)
     snprintf(value, sizeof(value), "%lu", limit_in_bytes);
     printf("Memory limit in bytes set %lu in controller memory in file %s\n ", limit_in_bytes, path);
 
-    fd = open(path, O_WRONLY | O_CREAT);
+    fd = open(path, O_WRONLY);
     if (fd == -1)
     {
         perror("Failed to open memory limit file");
@@ -355,7 +355,7 @@ int set_cpu_limit(const char *group, unsigned long limit_in_percent)
     snprintf(value, sizeof(value), "%d 100000", (limit_in_percent * 100000 / 100));
     printf("CPU limit set %lu, in controller cpu in file %s\n ", limit_in_percent, path);
 
-    fd = open(path, O_WRONLY | O_CREAT);
+    fd = open(path, O_WRONLY );
     if (fd == -1)
     {
         perror("Failed to open cpu limit file");
@@ -389,7 +389,7 @@ int set_io_limit(const char *group, unsigned long limit_mb_per_sec)
 
     
 
-    fd = open(path, O_WRONLY | O_CREAT);
+    fd = open(path, O_WRONLY );
     if (fd == -1)
     {
         perror("Failed to open memory limit file");
@@ -424,11 +424,13 @@ int set_io_limit(const char *group, unsigned long limit_mb_per_sec)
     return 0;
 }
 
-void set_resource_limits(const char *group_name)
+void set_resource_limits()
 {
+    const char *group_name = "mygroup";
+
     DEBUG_PRINT("Setting up resource limits for group: %s", group_name);
     INFO_PRINT("Creating cgroup controllers");
-    create_cgroup(subsystem_name(CPU), group_name, getpid());
+    create_cgroup(group_name);
     DEBUG_PRINT("Setting CPU limit to 5%%");
     set_cpu_limit(group_name, 5);
     DEBUG_PRINT("Setting memory limit to 2MB");
@@ -550,7 +552,7 @@ int child_function(void *arg)
 
 int main(int argc, char *argv[])
 {   
-    const char *group_name = "container";
+    
 
     INFO_PRINT("Capsule initialization started");
     DEBUG_PRINT("Process ID: %d", getpid());
@@ -578,9 +580,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    create_cgroup();
     // Set resource limits
-    set_resource_limits(group_name);
+    set_resource_limits();
 
     // Allocate stack for child
     DEBUG_PRINT("Allocating stack (size: %d bytes)", STACK_SIZE);
@@ -593,7 +594,7 @@ int main(int argc, char *argv[])
 
     // Create child process with new namespaces
     int flags = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
-                CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWCGROUP;
+                CLONE_NEWPID | CLONE_NEWNET;
                 DEBUG_PRINT("Namespace flags configured: 0x%x", flags);
     INFO_PRINT("Creating new namespaces");
     DEBUG_PRINT("  Mount namespace (CLONE_NEWNS)");

@@ -4,15 +4,15 @@
 
 int main() {
     FILE *fp;
-    char buffer[1024 * 1024 * 2]; // 2MB buffer
+    char buffer[1024 * 1024 * 4]; // 4MB buffer
     
     fp = fopen("test.dat", "w");
     if (fp == NULL) {
-        perror("fopen");
+        printf("error fopen\n");
         return 1;
     }
     
-    // Try to write 2MB (over limit)
+    // Try to write 4MB (over limit)
     fwrite(buffer, 1, sizeof(buffer), fp);
     fclose(fp);
     
