@@ -23,6 +23,28 @@
 
 #define MB_TO_BYTES(x) (x * 1024 * 1024)
 
+
+
+#define RED     "\x1b[31m"
+#define GREEN   "\x1b[32m"
+#define YELLOW  "\x1b[33m"
+#define BLUE    "\x1b[34m"
+#define RESET   "\x1b[0m"
+
+
+// Debug print macros
+#define DEBUG_PRINT(fmt, ...) \
+    printf(BLUE "[DEBUG][%d] " fmt RESET "\n", getpid(), ##__VA_ARGS__)
+
+#define ERROR_PRINT(fmt, ...) \
+    fprintf(stderr, RED "[ERROR][%d] " fmt RESET "\n", getpid(), ##__VA_ARGS__)
+
+#define INFO_PRINT(fmt, ...) \
+    printf(GREEN "[INFO][%d] " fmt RESET "\n", getpid(), ##__VA_ARGS__)
+
+#define WARN_PRINT(fmt, ...) \
+    printf(YELLOW "[WARN][%d] " fmt RESET "\n", getpid(), ##__VA_ARGS__)
+
 struct child_config
 {
     char *zip_path;
@@ -32,47 +54,29 @@ struct child_config
 
 typedef enum
 {
-    BLKIO,
     CPU,
-    CPUACCT,
     CPUSET,
-    DEVICES,
-    FREEZER,
+    IO,
     MEMORY,
-    NET_CLS,
-    NET_PRIO,
-    NS,
-    PERF_EVENT
 } subsystems_t;
 
 const char *subsystem_name(subsystems_t ss)
 {
     switch (ss)
     {
-    case BLKIO:
-        return "blkio";
     case CPU:
         return "cpu";
     case CPUSET:
         return "cpuset";
-    case FREEZER:
-        return "freezer";
-    case CPUACCT:
-        return "Cpuacct";
-    case NS:
-        return "ns";
     case MEMORY:
         return "memory";
-    case NET_CLS:
-        return "net_cls";
-    case NET_PRIO:
-        return "net_prio";
-    case DEVICES:
-        return "devices";
     default:
         return "cpu";
     }
 }
+
+
+
 
 // Function to extract zip file
 static int extract_zip(const char *zip_path, const char *target_dir)
@@ -83,11 +87,17 @@ static int extract_zip(const char *zip_path, const char *target_dir)
     char buf[4096];
     int err;
 
+     DEBUG_PRINT("Starting zip extraction process");
+    DEBUG_PRINT("Source: %s", zip_path);
+    DEBUG_PRINT("Target: %s", target_dir);
+
     if ((za = zip_open(zip_path, 0, &err)) == NULL)
     {
-        fprintf(stderr, "Failed to open zip file\n");
+        ERROR_PRINT("Failed to open zip file: %s (error code: %d)", zip_path, err);
         return -1;
     }
+
+    INFO_PRINT("Successfully opened zip file with %d entries", zip_get_num_entries(za, 0));
 
     for (int i = 0; i < zip_get_num_entries(za, 0); i++)
     {
@@ -136,7 +146,10 @@ static int extract_zip(const char *zip_path, const char *target_dir)
         {
             char path[100];
             snprintf(path, sizeof(path), "%s/%s", target_dir, sb.name);
-            printf("File: %s, extracting to %s \n", sb.name, path);
+
+            DEBUG_PRINT("Processing file %d/%d: %s", 
+                       i + 1, zip_get_num_entries(za, 0), sb.name);
+            DEBUG_PRINT("File size: %lu bytes", sb.size);
             // to make directory
             if (sb.name[strlen(sb.name) - 1] == '/')
             {
@@ -210,41 +223,60 @@ static int extract_zip(const char *zip_path, const char *target_dir)
             zip_fclose(zf);
         }
     }
-
+    INFO_PRINT("Zip extraction completed");
     zip_close(za);
     return 0;
 }
 
+
 // Function to create a new cgroup
-int create_cgroup(const char *subsystem, const char *group)
+int create_cgroup(const char *subsystem, const char *group, pid_t pid)
 {
+    const char * controllers = "+cpuset +cpu +io +memory +io +pids +rdma";
     char path[1024];
-    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/%s", subsystem, group);
+    char pid_str[32];
+    int fd;
+
+
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s", group);
+    DEBUG_PRINT("Creating cgroup: group=%s", path);
 
     if (mkdir(path, 0755) < 0)
     {
         // errno is global var // bad thing to use although
         if (errno == EEXIST)
         {
-            printf("Cgroup already exists !! \n");
+           WARN_PRINT("Group already exists: %s", path);
         }
         else
         {
-            perror("Failed to create cgroup");
+            ERROR_PRINT("Failed to create group: %s (errno=%d: %s)", 
+                       path, errno, strerror(errno));
             return -1;
         }
     }
-    return 0;
-}
+    INFO_PRINT("Successfully created cgroup: %s", path);
+    // memory.max
 
-// Function to add process to cgroup
-int add_to_cgroup(const char *subsystem, const char *group, pid_t pid)
-{
-    char path[1024];
-    char pid_str[32];
-    int fd;
+    
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/cgroup.subtree_control");
 
-    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/%s/tasks", subsystem, group);
+    fd = open(path, O_WRONLY);
+    if (fd == -1)
+    {
+        perror("Failed to open tasks file");
+        return -1;
+    }
+
+    if (write(fd, controllers, strlen(controllers)) == -1)
+    {
+        perror("Failed to write controllers  process to cgroup");
+        close(fd);
+        return -1;
+    }
+    close(fd);
+
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/cgroups.proc", group);
     snprintf(pid_str, sizeof(pid_str), "%d", pid);
 
     fd = open(path, O_WRONLY);
@@ -262,14 +294,16 @@ int add_to_cgroup(const char *subsystem, const char *group, pid_t pid)
     }
 
     close(fd);
+
     return 0;
 }
+
 
 // Function to remove cgroup
 int remove_cgroup(const char *subsystem, const char *group)
 {
     char path[1024];
-    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/%s", subsystem, group);
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s", group);
 
     if (rmdir(path) == -1)
     {
@@ -286,7 +320,7 @@ int set_memory_limit(const char *group, unsigned long limit_in_bytes)
     char value[32];
     int fd;
 
-    snprintf(path, sizeof(path), "/sys/fs/cgroup/memory/%s/memory.limit_in_bytes", group);
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/memory.max", group);
     snprintf(value, sizeof(value), "%lu", limit_in_bytes);
     printf("Memory limit in bytes set %lu in controller memory in file %s\n ", limit_in_bytes, path);
 
@@ -312,25 +346,25 @@ int set_memory_limit(const char *group, unsigned long limit_in_bytes)
 int set_cpu_limit(const char *group, unsigned long limit_in_percent)
 {
     char path[1024];
-    char value[32];
+    char value[64];
     int fd;
-    // cpu.rt_period_us="1000000";
-    // cpu.rt_runtime_us="500000";
+    //     # this allows the cgroup to only use 5% of a CPU
+    // echo '5000 100000' > /sys/fs/cgroup/sandbox/cpu.max
 
-    snprintf(path, sizeof(path), "/sys/fs/cgroup/cpu/%s/memory.limit_in_bytes", group);
-    snprintf(value, sizeof(value), "%lu", limit_in_percent);
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/cpu.max", group);
+    snprintf(value, sizeof(value), "%d 100000", (limit_in_percent * 100000 / 100));
     printf("CPU limit set %lu, in controller cpu in file %s\n ", limit_in_percent, path);
 
     fd = open(path, O_WRONLY);
     if (fd == -1)
     {
-        perror("Failed to open memory limit file");
+        perror("Failed to open cpu limit file");
         return -1;
     }
 
     if (write(fd, value, strlen(value)) == -1)
     {
-        perror("Failed to set memory limit");
+        perror("Failed to set cpu limit");
         close(fd);
         return -1;
     }
@@ -345,11 +379,15 @@ int set_io_limit(const char *group, unsigned long limit_mb_per_sec)
     char path[1024];
     char value[32];
     int fd;
-
+    int major = 259, minor = 0;
+    
     // blkio.throttle.read_bps_device, blkio.throttle.write_bps_device
-    snprintf(path, sizeof(path), "/sys/fs/cgroup/blkio/%s/blkio.throttle.read_bps_device", group);
-    snprintf(value, sizeof(value), "%lu", limit_mb_per_sec);
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/io", group);
+    snprintf(value, sizeof(value), "%d:%d rbps=%lu wbps=%lu", major, minor, (limit_mb_per_sec * 1024 * 1024), (limit_mb_per_sec * 1024 * 1024));
+
     printf("IO limit set %lu, in controller blkio in file %s\n ", limit_mb_per_sec, path);
+
+    
 
     fd = open(path, O_WRONLY);
     if (fd == -1)
@@ -388,33 +426,50 @@ int set_io_limit(const char *group, unsigned long limit_mb_per_sec)
 
 void set_resource_limits(const char *group_name)
 {
-
-    create_cgroup(subsystem_name(CPU), group_name);
-    create_cgroup(subsystem_name(MEMORY), group_name);
-    create_cgroup(subsystem_name(IO), group_name);
+    DEBUG_PRINT("Setting up resource limits for group: %s", group_name);
+    INFO_PRINT("Creating cgroup controllers");
+    create_cgroup(subsystem_name(CPU), group_name, getpid());
+    DEBUG_PRINT("Setting CPU limit to 5%%");
     set_cpu_limit(group_name, 5);
+    DEBUG_PRINT("Setting memory limit to 2MB");
     set_memory_limit(group_name, MB_TO_BYTES(2));
+    DEBUG_PRINT("Setting I/O limit to 1MB/s");
     set_io_limit(group_name, 1);
+    INFO_PRINT("Resource limits setup completed");
+    INFO_PRINT("Cross checking resources \n");
+
+    
 }
 
 int setup_mounts()
 {
+    DEBUG_PRINT("Initializing mount namespace setup");
     if (mount("proc", "/proc", "proc", 0, NULL) == -1)
     {
         perror("mount proc");
         exit(EXIT_FAILURE);
     }
+    INFO_PRINT("Successfully mounted proc filesystem");
     return 1;
 }
 
 int child_function(void *arg)
 {
 
+    
+
     const char *group_name = "mygroup";
     pid_t pid = getpid();
 
     struct child_config *config = arg;
+    
+    INFO_PRINT("Child process initialized");
+    DEBUG_PRINT("Configuration:");
+    DEBUG_PRINT("  Hostname: %s", config->hostname);
+    DEBUG_PRINT("  Mount directory: %s", config->mount_dir);
 
+
+    DEBUG_PRINT("Setting hostname to: %s", config->hostname);
     if (sethostname(config->hostname, strlen(config->hostname)) == -1)
     {
         perror("sethostname");
@@ -436,6 +491,7 @@ int child_function(void *arg)
     // - Correct /proc view (Mount NS)
     // - Everything works properly!
     // Setup mounts
+    DEBUG_PRINT("Configuring mount namespace");
     if (setup_mounts() == -1)
     {
         perror("setup mounts");
@@ -443,6 +499,7 @@ int child_function(void *arg)
     }
 
     // Change root
+    DEBUG_PRINT("Changing root to: %s", config->mount_dir);
     if (chroot(config->mount_dir) == -1)
     {
         perror("chroot");
@@ -456,9 +513,10 @@ int child_function(void *arg)
     }
 
     // Set resource limits
-    set_resource_limits();
+    set_resource_limits(group_name);
 
     // Execute shell
+    INFO_PRINT("Launching shell");
     char *args[] = {"/bin/bash", NULL};
     execv("/bin/bash", args);
     perror("execv");
@@ -466,12 +524,16 @@ int child_function(void *arg)
 }
 
 int main(int argc, char *argv[])
-{
+{   
+    INFO_PRINT("Capsule initialization started");
+    DEBUG_PRINT("Process ID: %d", getpid());
+
     if (argc != 2)
     {
         printf("Usage: ./capsule <zipfile>\n");
         return 1;
     }
+     DEBUG_PRINT("Input zip file: %s", argv[1]);
 
     struct child_config ch_config = {
         .zip_path = argv[1],
@@ -490,6 +552,7 @@ int main(int argc, char *argv[])
     }
 
     // Allocate stack for child
+    DEBUG_PRINT("Allocating stack (size: %d bytes)", STACK_SIZE);
     char *stack = malloc(STACK_SIZE);
     if (!stack)
     {
@@ -500,6 +563,14 @@ int main(int argc, char *argv[])
     // Create child process with new namespaces
     int flags = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
                 CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWUSER;
+                DEBUG_PRINT("Namespace flags configured: 0x%x", flags);
+    INFO_PRINT("Creating new namespaces");
+    DEBUG_PRINT("  Mount namespace (CLONE_NEWNS)");
+    DEBUG_PRINT("  UTS namespace (CLONE_NEWUTS)");
+    DEBUG_PRINT("  IPC namespace (CLONE_NEWIPC)");
+    DEBUG_PRINT("  PID namespace (CLONE_NEWPID)");
+    DEBUG_PRINT("  Network namespace (CLONE_NEWNET)");
+    DEBUG_PRINT("  User namespace (CLONE_NEWUSER)");
 
     pid_t child_pid = clone(child_function, stack + STACK_SIZE, flags | SIGCHLD, &ch_config);
     if (child_pid == -1)
@@ -507,6 +578,7 @@ int main(int argc, char *argv[])
         perror("clone");
         exit(EXIT_FAILURE);
     }
+    INFO_PRINT("Child process created successfully (PID: %d)", child_pid);
 
     // Wait for child
     if (waitpid(child_pid, NULL, 0) == -1)
@@ -517,6 +589,7 @@ int main(int argc, char *argv[])
 
     // Cleanup
     free(stack);
+    INFO_PRINT("Capsule execution completed successfully");
 
     return EXIT_SUCCESS;
 }

@@ -45,6 +45,7 @@ echo "0 1000 1" > /proc/[pid]/uid_map                # Map root in ns to uid 100
 echo "0 1000 1" > /proc/[pid]/gid_map                # Map root in ns to gid 1000
 
 
+stat -fc %T /sys/fs/cgroup/
 
 # Cgroups 
 
