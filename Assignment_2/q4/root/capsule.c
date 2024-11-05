@@ -610,6 +610,30 @@ int main(int argc, char *argv[])
         perror("clone");
         exit(EXIT_FAILURE);
     }
+
+    char path[1024];
+    char pid_str[32];
+    int fd;
+
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/cgroup.procs", "mygroup");
+    snprintf(pid_str, sizeof(pid_str), "%d", child_pid);
+
+    fd = open(path, O_WRONLY);
+    if (fd == -1)
+    {
+        perror("Failed to open tasks file");
+        return -1;
+    }
+
+    if (write(fd, pid_str, strlen(pid_str)) == -1)
+    {
+        perror("Failed to add process to cgroup");
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+
     INFO_PRINT("Child process created successfully (PID: %d)", child_pid);
 
     // Wait for child
