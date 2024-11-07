@@ -5,8 +5,9 @@
 
 int main() {
     char *ptr;
-    size_t size = 3 * 1024 * 1024; // Try to allocate 3MB (over limit)
+    size_t size = 5 * 1024 * 1024; // Try to allocate 3MB (over limit)
     
+    int letssee[5*1024*1024];
     ptr = malloc(size);
     if (ptr == NULL) {
         printf("Memory allocation failed (expected)\n");
