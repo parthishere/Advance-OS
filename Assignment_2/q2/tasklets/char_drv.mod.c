@@ -1,38 +1,73 @@
+/*********************************************************************
+ * Advanced OS Assignment 2
+ * File: module.mod.c
+ * 
+ * Purpose:
+ *     Auto-generated kernel module build file containing symbol 
+ *     versioning information, module metadata, and build configuration.
+ *     This file is created by the kernel build system during module
+ *     compilation.
+ * 
+ * Author: Parth Thakkar
+ * Date: 8/11/24
+ * 
+ * Copyright (c) 2024 Parth Thakkar
+ * All rights reserved.
+ *********************************************************************/
+/* Core kernel module support */
 #include <linux/module.h>
-#define INCLUDE_VERMAGIC
-#include <linux/build-salt.h>
-#include <linux/elfnote-lto.h>
-#include <linux/export-internal.h>
-#include <linux/vermagic.h>
-#include <linux/compiler.h>
 
+/* Build system and version verification headers */
+#define INCLUDE_VERMAGIC
+#include <linux/build-salt.h>     /* Build-time salt for module authentication */
+#include <linux/elfnote-lto.h>    /* Link Time Optimization (LTO) metadata */
+#include <linux/export-internal.h> /* Internal symbol export definitions */
+#include <linux/vermagic.h>       /* Kernel version magic number checking */
+#include <linux/compiler.h>       /* Compiler-specific annotations */
+
+
+/* ORC unwinder support for stack trace generation */
 #ifdef CONFIG_UNWINDER_ORC
-#include <asm/orc_header.h>
-ORC_HEADER;
+#include <asm/orc_header.h>       /* ORC unwinder metadata header */
+ORC_HEADER;                       /* Insert ORC unwinder metadata */
 #endif
 
-BUILD_SALT;
-BUILD_LTO_INFO;
+/* Build-time metadata generation */
+BUILD_SALT;                       /* Generate unique build identifier */
+BUILD_LTO_INFO;                   /* Include LTO build information */
 
-MODULE_INFO(vermagic, VERMAGIC_STRING);
-MODULE_INFO(name, KBUILD_MODNAME);
+/* Module metadata information */
+MODULE_INFO(vermagic, VERMAGIC_STRING);  /* Kernel version compatibility info */
+MODULE_INFO(name, KBUILD_MODNAME);       /* Module name */
 
+
+/**
+ * Module structure definition
+ * Contains core information about the kernel module including init/exit
+ * functions and module name
+ */
 __visible struct module __this_module
 __section(".gnu.linkonce.this_module") = {
-	.name = KBUILD_MODNAME,
-	.init = init_module,
+    .name = KBUILD_MODNAME,           /* Module name from build system */
+    .init = init_module,              /* Module initialization function */
 #ifdef CONFIG_MODULE_UNLOAD
-	.exit = cleanup_module,
+    .exit = cleanup_module,           /* Module cleanup function (if unload enabled) */
 #endif
-	.arch = MODULE_ARCH_INIT,
+    .arch = MODULE_ARCH_INIT,         /* Architecture-specific initialization */
 };
 
+/* Retpoline mitigation for Spectre V2 vulnerability */
 #ifdef CONFIG_RETPOLINE
-MODULE_INFO(retpoline, "Y");
+MODULE_INFO(retpoline, "Y");          /* Indicate retpoline compilation */
 #endif
 
 
 
+/**
+ * Symbol version table
+ * Maps kernel symbols used by this module to their CRC checksums
+ * Format: 16-byte records containing size, CRC, and symbol name
+ */
 static const char ____versions[]
 __used __section("__versions") =
 	"\x10\x00\x00\x00\xe6\x6e\xab\xbc"
@@ -83,7 +118,9 @@ __used __section("__versions") =
 	"module_layout\0\0\0"
 	"\x00\x00\x00\x00\x00\x00\x00\x00";
 
+
+/* Module dependency information (none in this case) */
 MODULE_INFO(depends, "");
 
-
+/* Source version identifier for module */
 MODULE_INFO(srcversion, "0225EA18BE0702D67924FDD");

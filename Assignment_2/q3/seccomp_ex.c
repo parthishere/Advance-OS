@@ -1,15 +1,49 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <seccomp.h>
-#include <linux/seccomp.h>
-#include <linux/filter.h>
-#include <linux/audit.h>
-#include <sys/prctl.h>
-#include <sys/syscall.h>
-#include <errno.h>
-#include <stddef.h>
+/*********************************************************************
+* Advanced OS Assignment 2
+* File: seccomp_examples.c
+* 
+* Purpose:
+*     Demonstrates various seccomp (secure computing mode) implementations
+*     including basic prctl(), libseccomp, and raw BPF filters. Shows
+*     different methods of system call filtering and sandboxing.
+*
+* Features:
+*     - Basic seccomp strict mode
+*     - Libseccomp API usage
+*     - Raw BPF filter implementation 
+*     - Advanced rules with argument filtering
+*     - Seccomp with logging
+*
+* Author: Parth Thakkar
+* Date: 8/11/24
+*
+* Copyright (c) 2024 Parth Thakkar
+* All rights reserved.
+*********************************************************************/
 
+
+/* Required header files */
+#include <stdio.h>           /* Standard I/O functions */
+#include <stdlib.h>          /* Standard library functions */
+#include <unistd.h>         /* UNIX standard functions */ 
+#include <seccomp.h>         /* Seccomp filtering API */
+#include <linux/seccomp.h>   /* Seccomp definitions */
+#include <linux/filter.h>    /* BPF filter definitions */
+#include <linux/audit.h>     /* Audit architecture definitions */
+#include <sys/prctl.h>       /* Process control functions */
+#include <sys/syscall.h>     /* System call numbers */
+#include <errno.h>           /* Error codes */
+#include <stddef.h>          /* Standard type definitions */
+
+/**
+* @function: basic_seccomp
+* 
+* @purpose: Demonstrates basic seccomp implementation using prctl()
+*          in strict mode which only allows read/write/exit syscalls
+* 
+* @note: This is the simplest form of seccomp filtering
+*       Once enabled, only basic syscalls are allowed
+*/
 // Basic Seccomp Example
 void basic_seccomp(void) {
     // Enable strict seccomp mode
@@ -29,6 +63,14 @@ void basic_seccomp(void) {
     // execve("/bin/sh", NULL, NULL);
 }
 
+/**
+* @function: libseccomp_example
+* 
+* @purpose: Shows seccomp implementation using libseccomp API
+*          Provides more flexible filtering than basic mode
+* 
+* @note: Uses higher-level API for filter creation
+*/
 // Seccomp with libseccomp
 void libseccomp_example(void) {
     scmp_filter_ctx ctx;
@@ -86,6 +128,14 @@ void advanced_seccomp(void) {
     seccomp_release(ctx);
 }
 
+/**
+* @function: bpf_seccomp
+* 
+* @purpose: Implements seccomp filtering using raw BPF instructions
+*          Provides lowest-level control over filtering
+* 
+* @note: Requires understanding of BPF instruction set
+*/
 // Seccomp with BPF filters directly
 void bpf_seccomp(void) {
 
@@ -160,6 +210,14 @@ void seccomp_with_logging(void) {
     seccomp_release(ctx);
 }
 
+/**
+* @function: main
+* 
+* @purpose: Program entry point demonstrating various seccomp 
+*          implementations
+* 
+* @returns: 0 on success, non-zero on failure
+*/
 int main(void) {
     printf("Starting seccomp examples...\n");
     

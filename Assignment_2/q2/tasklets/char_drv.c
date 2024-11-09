@@ -1,31 +1,62 @@
-#include <linux/kernel.h>
-#include <linux/init.h>
-#include <linux/module.h>
-#include <linux/kdev_t.h>
-#include <linux/fs.h>
-#include <linux/cdev.h>
-#include <linux/device.h>
-#include <linux/sysfs.h>
-#include <linux/kobject.h>
-#include <linux/interrupt.h>
-#include <asm/io.h>
-#include <linux/err.h>
-#include <linux/gpio.h>
+/*********************************************************************
+ * Advanced OS Assignment 2
+ * File: temperature_driver.c
+ * 
+ * Purpose:
+ *     Linux kernel module implementing a character device driver with 
+ *     interrupt handling capabilities for temperature monitoring. The
+ *     driver supports both GPIO and ISA interrupts, implements tasklet
+ *     for bottom-half processing, and provides sysfs interface for 
+ *     userspace interaction.
+ * 
+ * Features:
+ *     - Character device driver implementation
+ *     - Interrupt handling (GPIO/ISA)
+ *     - Tasklet bottom-half processing
+ *     - Sysfs interface for temperature value
+ *     - Device class registration
+ * 
+ * Author: Parth Thakkar
+ * Date: 8/11/24
+ * 
+ * Copyright (c) 2024 Parth Thakkar
+ * All rights reserved.
+ *********************************************************************/
+ 
+/* Required header files for kernel module functionality */
+#include <linux/kernel.h>    /* Core kernel functions */
+#include <linux/init.h>      /* Initialization macros */
+#include <linux/module.h>    /* Module specific macros */
+#include <linux/kdev_t.h>    /* Device number definitions */
+#include <linux/fs.h>        /* File system operations */
+#include <linux/cdev.h>      /* Character device structure */
+#include <linux/device.h>    /* Device class and sysfs */
+#include <linux/sysfs.h> 
+#include <linux/kobject.h>   /* Kernel object interfaces */
+#include <linux/interrupt.h> /* Interrupt handling */
+#include <asm/io.h>          /* I/O operations */
+#include <linux/err.h>       /* Error handling */
+#include <linux/gpio.h>      /* GPIO operations */
 
+/* Module information */
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Parth Thakkar>");
 MODULE_DESCRIPTION("Device Driver");
 MODULE_VERSION("1.0");
 
 /*************** TASKLET  ******************/
-#define GPIO_INTERRUPT 0
+/* Interrupt configuration */
+#define GPIO_INTERRUPT 0     /* Switch between GPIO (1) and ISA (0) interrupts */
+
 #if (GPIO_INTERRUPT == 1)
-#define GPIO_INT_PIN 17
+#define GPIO_INT_PIN 17      /* GPIO pin number for interrupt */
 #else
+#define IRQ_NO 11           /* ISA interrupt number */
+#endif
+
 // #define FIRST_EXTERNAL_VECTOR		0x20
 //  #define ISA_IRQ_VECTOR(irq)		(((FIRST_EXTERNAL_VECTOR + 16) & ~15) + irq)
-#define IRQ_NO 11
-#endif
+
 // struct tasklet_struct
 // {
 // 	struct tasklet_struct *next;
@@ -45,12 +76,25 @@ MODULE_VERSION("1.0");
 // 	.callback = _callback,
 // 	.use_callback = true,
 // }
+
+/* Global variable for storing IRQ number */
 int irq_number;
 
+/**
+ * @function: tasklet_bottom_half_callback
+ * 
+ * @purpose: Bottom half handler executed in interrupt context after the
+ *          top half completes. Processes non-critical interrupt tasks.
+ * 
+ * @param arg: Data passed to the tasklet (unused in this implementation)
+ * 
+ * @returns: None
+ */
 void tasklet_bottom_half_callback(unsigned long);
 
 /* Init the Tasklet by Static Method */
 DECLARE_TASKLET(my_tasklet_struct, (void *)tasklet_bottom_half_callback);
+
 
 /*Tasklet Function*/
 void tasklet_bottom_half_callback(unsigned long arg)
@@ -58,6 +102,17 @@ void tasklet_bottom_half_callback(unsigned long arg)
     printk(KERN_INFO "Executing bottom half of interrupts with : arg = %ld\n", arg);
 }
 
+/**
+ * @function: irq_handler
+ * 
+ * @purpose: Top half interrupt handler, executes in interrupt context
+ *          and schedules the tasklet for bottom half processing
+ * 
+ * @param irq: Interrupt number that was triggered
+ * @param dev_id: Device identifier passed during interrupt registration
+ * 
+ * @returns: IRQ_HANDLED if interrupt was handled successfully
+ */
 // prototype in interrupts.h
 // typedef irqreturn_t (*irq_handler_t)(int, void *);
 static irqreturn_t irq_handler(int irq, void *dev_id)

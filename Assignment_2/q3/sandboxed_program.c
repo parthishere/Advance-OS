@@ -1,14 +1,37 @@
-#include <stdio.h>
-#include <linux/seccomp.h> /* Definition of PR_* constants */
-#include <seccomp.h>
-#include <linux/prctl.h> /* Definition of PR_* constants */
-#include <sys/prctl.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <linux/filter.h>
-#include <linux/audit.h>
-#include <stddef.h>
+/*********************************************************************
+ * Advanced OS Assignment 2
+ * File: seccomp_sandbox.c
+ * 
+ * Purpose: 
+ *     Implements a secure computing (seccomp) sandbox using three 
+ *     different approaches: prctl, libseccomp, and eBPF filters.
+ *     Demonstrates system call filtering and process isolation.
+ * 
+ * Features:
+ *     - Multiple seccomp implementation methods
+ *     - System call filtering
+ *     - File operation restrictions
+ *     - Process isolation
+ * 
+ * Author: Parth Thakkar
+ * Date: 8/11/24
+ * 
+ * Copyright (c) 2024 Parth Thakkar
+ * All rights reserved.
+ *********************************************************************/
+
+/* Required header files */
+#include <stdio.h>           /* Standard I/O operations */
+#include <linux/seccomp.h>   /* Seccomp definitions */
+#include <seccomp.h>         /* Libseccomp API */
+#include <linux/prctl.h>     /* Process control operations */
+#include <sys/prctl.h>       /* prctl system call */
+#include <unistd.h>          /* UNIX standard functions */
+#include <fcntl.h>           /* File control operations */
+#include <stdlib.h>          /* Standard library */
+#include <linux/filter.h>    /* BPF filter definitions */
+#include <linux/audit.h>     /* Audit architecture definitions */
+#include <stddef.h>          /* Standard definitions */
 
 // // Template for creating security rules:
 // #define MY_SECURITY_CHECK(what_to_check)
@@ -39,15 +62,33 @@
 // 	__u64 args[6];
 // };
 
+
 int part_to_run, type_to_run;
 scmp_filter_ctx ctx;
 
+/**
+ * @function: graceful_exit
+ * 
+ * @purpose: Performs cleanup and exits the program
+ * 
+ * @param rc: Exit status code
+ * 
+ * @note: Releases seccomp context before exit
+ */
 void graceful_exit(int rc)
 {
     seccomp_release(ctx);
     exit(rc);
 }
 
+/**
+ * @function: normal_seccomp
+ * 
+ * @purpose: Implements strict seccomp mode using prctl
+ *          Only allows read, write, and exit system calls
+ * 
+ * @note: Uses SECCOMP_MODE_STRICT for basic filtering
+ */
 void normal_seccomp()
 {
     printf("Strict mode enabled - only read/write/exit allowed\n");
@@ -59,6 +100,15 @@ void normal_seccomp()
     }
 }
 
+/**
+ * @function: libseccomp_setup
+ * 
+ * @purpose: Implements seccomp filtering using libseccomp
+ * 
+ * @param fd: File descriptor to allow operations on
+ * 
+ * @note: Sets up fine-grained syscall filtering rules
+ */
 void libseccomp_setup(int fd)
 {
     int rc;
@@ -90,6 +140,14 @@ void libseccomp_setup(int fd)
     }
 }
 
+
+/**
+ * @function: ebpf_seccomp
+ * 
+ * @purpose: Implements seccomp filtering using eBPF
+ * 
+ * @note: Uses BPF instructions to create custom filter
+ */
 void ebpf_seccomp()
 {
     // What each part means:
@@ -166,6 +224,18 @@ void ebpf_seccomp()
         exit(EXIT_FAILURE);
     }
 }
+
+/**
+ * @function: main
+ * 
+ * @purpose: Program entry point, handles command line arguments
+ *          and sets up appropriate seccomp filtering
+ * 
+ * @param argc: Argument count
+ * @param argv: Argument vector
+ * 
+ * @returns: 0 on success, -1 on error
+ */
 
 int main(int argc, char *argv[])
 {

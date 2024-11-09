@@ -1,13 +1,39 @@
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/proc_fs.h>
-#include <linux/workqueue.h>
-#include <linux/sched.h>
-#include <linux/init.h>
-#include <linux/interrupt.h>
-#include <linux/kprobes.h>
+/*********************************************************************
+ * Advanced OS Assignment 2
+ * File: work_queues_task.c
+ * 
+ * Purpose: 
+ *     Implements a kernel module for periodic system call table monitoring
+ *     using work queues. This module schedules periodic checks for 
+ *     potential rootkit infections by verifying system call integrity.
+ *     It demonstrates kernel work queue usage, kprobes, and system call
+ *     table access.
+ * 
+ * Features:
+ *     - Work queue implementation for periodic tasks
+ *     - Kprobe usage for symbol resolution
+ *     - System call table verification
+ *     - Proper cleanup and resource management
+ * 
+ * Author: Parth Thakkar
+ * Date: 8/11/24
+ * 
+ * Copyright (c) 2024 Parth Thakkar
+ * All rights reserved.
+ *********************************************************************/
+ 
+/* Required header files for kernel functionality */
+#include <linux/kernel.h>     /* Core kernel functions */
+#include <linux/module.h>     /* Module specific functionality */
+#include <linux/proc_fs.h>    /* Procfs interface support */
+#include <linux/workqueue.h>  /* Work queue implementation */
+#include <linux/sched.h>      /* Scheduler functions */
+#include <linux/init.h>       /* Module initialization */
+#include <linux/interrupt.h>  /* Interrupt handling */
+#include <linux/kprobes.h>    /* Kernel probe functionality */
 
 
+/* Module metadata information */
 MODULE_AUTHOR("Parth Thakkar");
 MODULE_DESCRIPTION("Rootkit");
 MODULE_LICENSE("GPL");
@@ -18,9 +44,10 @@ As create_proc_entry function is deprecated, The newer functions are named proc_
 In particular, proc_create creates a proc entry. You can check out the implementation of the other (quite useful) functions in the source file at fs/proc/generic.c. You may be particularly interested in proc_mkdir and proc_create_data.
 */
 
+/* Global variables and work queue structures */
+static int die = 0;  /* Control flag for work queue operation */
 
-
-static int die = 0;
+/* Function prototypes */
 static void mykmod_work_handler(struct work_struct *w);
 
 // struct workqueue_struct {
@@ -85,54 +112,90 @@ static DECLARE_DELAYED_WORK(delayed_work_struct, mykmod_work_handler);
 
 
 
-
+/* Kprobe structure for symbol resolution */
 static struct kprobe kp = {
-    .symbol_name = "kallsyms_lookup_name"
+    .symbol_name = "kallsyms_lookup_name"  /* Symbol to probe for address resolution */
 };
 
+/* System call related declarations */
 typedef asmlinkage long (*my_sys_parth_t)(void); 
 my_sys_parth_t my_sys_parth;
 
+
+/* System call table access variables */
 uint8_t was_writable = 0;
 void **sys_call_table_addr = (void *)0xffffffff84a002e0;
 
-
+/**
+ * @function: mykmod_work_handler
+ * 
+ * @purpose: Work queue handler function that performs periodic system call
+ *          verification. Schedules itself to run again after completion.
+ * 
+ * @param w: Work structure pointer (unused in this implementation)
+ * 
+ * @returns: None
+ * 
+ * @note: Reschedules itself every 5 seconds using queue_delayed_work
+ */
 static void
 mykmod_work_handler(struct work_struct *w)
 {   
-        int fivesec = msecs_to_jiffies(5000);
+         int fivesec = msecs_to_jiffies(5000);  /* Convert 5 seconds to jiffies */
         pr_info("mykmod work %u jiffies\n", (unsigned)fivesec);
-        my_sys_parth();
+        my_sys_parth();  /* Call our custom system call */
+        /* Reschedule the work */
         queue_delayed_work(my_workqueue, &delayed_work_struct, fivesec);
 }
 
 
+/**
+ * @function: custom_init_module
+ * 
+ * @purpose: Module initialization function that sets up work queue,
+ *          resolves required symbols, and starts periodic monitoring.
+ * 
+ * @returns: 
+ *     0: Successful initialization
+ *    -1: Initialization failed
+ * 
+ * @note: Uses kprobes to resolve symbol addresses at runtime
+ */
 static int __init custom_init_module(void)
 {
-
     int ret = 0;
     printk(KERN_INFO "Init\n");
 
+    /* Symbol resolution using kprobes */
     typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
     kallsyms_lookup_name_t kallsyms_lookup_name_my;
+    
+    /* Register and use kprobe to get symbol address */
     register_kprobe(&kp);
     kallsyms_lookup_name_my = (kallsyms_lookup_name_t) kp.addr;
     unregister_kprobe(&kp);
+
+    /* Resolve system call table address */
     sys_call_table_addr = (void *)kallsyms_lookup_name_my("sys_call_table");
-    if (sys_call_table_addr == NULL)
-    {
+    if (sys_call_table_addr == NULL) {
         pr_info("sys_call_table not found using kprobe my kallsyms\n");
         return -1;
     }
+
     printk(KERN_INFO "sys_call_table pointer from kprobe is %p\n", sys_call_table_addr);
+
+    /* Resolve custom system call address */
     my_sys_parth = kallsyms_lookup_name_my("sys_parth");
     if(my_sys_parth == NULL){
         printk(KERN_INFO, "Could not find your own syscall");
         return -1;
     }
-    int onesec = msecs_to_jiffies(1000);
 
+    /* Initialize and start work queue */
+    int onesec = msecs_to_jiffies(1000);
     pr_info("lkm loaded %u jiffies\n", (unsigned)onesec);
+
+    /* Create single-threaded work queue */
     if (!my_workqueue)
         my_workqueue = create_singlethread_workqueue("rtkit_check");
     if (my_workqueue)
@@ -161,17 +224,26 @@ static int __init custom_init_module(void)
     return 0;
 }
 
+/**
+ * @function: custom_cleanup_module
+ * 
+ * @purpose: Module cleanup function that ensures proper resource
+ *          deallocation and work queue cleanup.
+ * 
+ * @returns: None
+ * 
+ * @note: Flushes and destroys work queue before module unload
+ */
 static void __exit custom_cleanup_module(void)
 {
-
-    if (my_workqueue)
-	{        
-        flush_workqueue(my_workqueue);
-        /* wait till all "old ones" finished */
-        destroy_workqueue(my_workqueue);
-	} 
-     pr_info("mykmod exit\n");
+    /* Clean up work queue if it exists */
+    if (my_workqueue) {        
+        flush_workqueue(my_workqueue);    /* Wait for pending work to complete */
+        destroy_workqueue(my_workqueue);  /* Free work queue resources */
+    } 
+    pr_info("mykmod exit\n");
 }
 
+/* Module entry and exit points */
 module_init(custom_init_module);
 module_exit(custom_cleanup_module);

@@ -1,3 +1,18 @@
+/*********************************************************************
+ * Advanced OS Assignment 2
+ * File: container_implementation.c
+ * 
+ * Purpose: 
+ *     Implements a container system using Linux namespaces and cgroups
+ *     for process isolation and resource control. Features filesystem
+ *     isolation, process namespace separation, and resource limiting.
+ * 
+ * Author: Parth Thakkar
+ * Date: 8/11/24
+ * 
+ * Copyright (c) 2024 Parth Thakkar
+ * All rights reserved.
+ *********************************************************************/
 
 /* Define _GNU_SOURCE to enable Linux-specific features */
 #define _GNU_SOURCE
@@ -106,7 +121,18 @@ const char *subsystem_name(subsystems_t ss) {
 }
 
 
-
+/**
+ * @function: extract_zip
+ * 
+ * @purpose: Extracts container rootfs from ZIP archive
+ * 
+ * @param zip_path: Path to ZIP file
+ * @param target_dir: Extraction destination
+ * 
+ * @returns: 0 on success, -1 on failure
+ * 
+ * @note: Creates directory structure and extracts files
+ */
 // Function to extract zip file
 static int extract_zip(const char *zip_path, const char *target_dir)
 {
@@ -257,6 +283,17 @@ static int extract_zip(const char *zip_path, const char *target_dir)
 }
 
 
+/**
+ * @function: create_cgroup
+ * 
+ * @purpose: Creates cgroup for resource control
+ * 
+ * @param group: Cgroup name
+ * 
+ * @returns: 0 on success, -1 on failure
+ * 
+ * @note: Sets up CPU, memory, and I/O controllers
+ */
 // Function to create a new cgroup
 int create_cgroup(const char *group)
 {

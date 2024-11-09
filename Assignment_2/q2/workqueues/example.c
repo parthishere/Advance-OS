@@ -1,13 +1,46 @@
-#include <linux/module.h>
-#include <linux/workqueue.h>
-#include <linux/slab.h>
-#include <linux/delay.h>
-#include <linux/sched.h>
-#include <linux/uaccess.h>
-#include <linux/fs.h>
-#include <linux/string.h>
-#include <linux/signal.h>
+/*********************************************************************
+ * Advanced OS Assignment 2
+ * File: user_task_module.c
+ * 
+ * Purpose: 
+ *     Implements a kernel module that manages user-space tasks using
+ *     work queues and provides multiple methods for kernel-user 
+ *     communication: signals, procfs, and character devices.
+ * 
+ * Features:
+ *     - Work queue based task scheduling
+ *     - Multiple user notification methods
+ *     - Synchronization using completions
+ *     - Resource cleanup management
+ * 
+ * Author: Parth Thakkar
+ * Date: 8/11/24
+ * 
+ * Copyright (c) 2024 Parth Thakkar
+ * All rights reserved.
+ *********************************************************************/
 
+/* Required header files */
+#include <linux/module.h>    /* Core module functionality */
+#include <linux/workqueue.h> /* Work queue API */
+#include <linux/slab.h>      /* Kernel memory allocation */
+#include <linux/delay.h>     /* Delay functions */
+#include <linux/sched.h>     /* Process scheduling */
+#include <linux/uaccess.h>   /* User space access */
+#include <linux/fs.h>        /* File operations */
+#include <linux/string.h>    /* String operations */
+#include <linux/signal.h>    /* Signal handling */
+
+
+/**
+ * @struct: user_task
+ * @brief: Structure to hold task-specific data and synchronization primitives
+ * 
+ * @field work: Work structure for queuing in workqueue
+ * @field user_pid: Process ID of the user-space program
+ * @field data: Buffer for data exchange with user-space
+ * @field done: Completion structure for synchronization
+ */
 // Structure to hold task data
 struct user_task {
     struct work_struct work;
@@ -16,9 +49,18 @@ struct user_task {
     struct completion done;   // Completion for synchronization
 };
 
-// Global workqueue
+/* Global workqueue for task management */
 static struct workqueue_struct *user_task_wq;
 
+/**
+ * @function: send_signal_to_userspace
+ * 
+ * @purpose: Sends a SIGUSR1 signal to the specified user process
+ * 
+ * @param task: Pointer to the user_task structure
+ * 
+ * @note: Uses RCU locking for safe process lookup
+ */
 // Method 1: Using signals to notify userspace
 static void send_signal_to_userspace(struct user_task *task)
 {
@@ -29,8 +71,7 @@ static void send_signal_to_userspace(struct user_task *task)
     info.si_signo = SIGUSR1;
     info.si_code = SI_QUEUE;
     
-    // Find
-     the user process
+    /* Safely lookup and signal the user process */
     rcu_read_lock();
     user_process = pid_task(find_vpid(task->user_pid), PIDTYPE_PID);
     if (user_process) {
@@ -196,15 +237,47 @@ module_exit(user_task_exit);
 
 ___________________________________
 
+/*********************************************************************
+ * Advanced OS Assignment 2
+ * File: user_task_app.c
+ * 
+ * Purpose: 
+ *     User-space application that interacts with the kernel module
+ *     through multiple interfaces: signals, procfs, and character 
+ *     devices. Demonstrates kernel-user communication methods.
+ * 
+ * Features:
+ *     - Signal handling for kernel notifications
+ *     - Proc filesystem interface usage
+ *     - Character device communication
+ * 
+ * Author: Parth Thakkar
+ * Date: 8/11/24
+ * 
+ * Copyright (c) 2024 Parth Thakkar
+ * All rights reserved.
+ *********************************************************************/
 
 
-#include <stdio.h>
-#include <signal.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <string.h>
-#include <stdlib.h>
+/* Required header files */
+#include <stdio.h>      /* Standard I/O operations */
+#include <signal.h>     /* Signal handling */
+#include <unistd.h>     /* UNIX standard functions */
+#include <fcntl.h>      /* File control operations */
+#include <string.h>     /* String operations */
+#include <stdlib.h>     /* Standard library functions */
 
+
+/**
+ * @function: signal_handler
+ * 
+ * @purpose: Handles SIGUSR1 signals from the kernel module and reads
+ *          task results from proc or device files
+ * 
+ * @param signo: Signal number received
+ * 
+ * @note: Opens and reads from /proc/user_task for task results
+ */
 // Signal handler for kernel notifications
 static void signal_handler(int signo)
 {
