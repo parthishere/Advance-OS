@@ -288,15 +288,23 @@ int main(int argc, char *argv[])
     write(test_file_fd, buffer_to_write, 99); // << ==  CHANGE THIS VALUE TO > 100 
 
     // unauthorize syscall
-    if (argv[3] == "2")
+    if (argv[3] == "1")
     {
+        fork();
     }
 
-    // fstat
     // creat a new file
+    if (argv[3] == "2")
+    {
+        open("random.txt", O_CREAT | O_EXCL);
+    }
 
     // open file not included in your jailed environmnet
-
+    if (argv[3] == "2")
+    {
+        open("/etc/passwd", O_RDONLY);
+    }
+    
     close(test_file_fd);
     return 0;
 }
