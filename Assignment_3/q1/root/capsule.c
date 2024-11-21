@@ -534,18 +534,18 @@ int setup_mounts()
 
     
     DEBUG_PRINT("Initializing mount namespace setup");
-    if (mount("proc", "/proc", "proc", 0, NULL) == -1)
+    if (mount("proc", "/proc", "proc", MS_REC|MS_PRIVATE, NULL) == -1)
     {
         perror("mount proc");
         exit(EXIT_FAILURE);
     }
     INFO_PRINT("Successfully mounted proc filesystem");
     
-    // if (mount("sysfs", "/sys", "sysfs", 0, NULL) == -1) {
-    //     ERROR_PRINT("Failed to mount sysfs: %s", strerror(errno));
-    //     return -1;
-    // }
-    // INFO_PRINT("Mounted sysfs");
+    if (mount("sysfs", "/sys", "sysfs", MS_REC|MS_PRIVATE, NULL) == -1) {
+        ERROR_PRINT("Failed to mount sysfs: %s", strerror(errno));
+        return -1;
+    }
+    INFO_PRINT("Mounted sysfs");
 
     // system("mount | grep cgroup");
     // system("cat /proc/self/cgroup");
@@ -675,7 +675,7 @@ int main(int argc, char *argv[])
 
     // Create child process with new namespaces
     int flags = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
-                CLONE_NEWPID | CLONE_NEWNET;
+                CLONE_NEWPID | CLONE_NEWNET | CLONE_THREAD;
                 DEBUG_PRINT("Namespace flags configured: 0x%x", flags);
     INFO_PRINT("Creating new namespaces");
     DEBUG_PRINT("  Mount namespace (CLONE_NEWNS)");
@@ -727,6 +727,10 @@ int main(int argc, char *argv[])
     // Cleanup
     free(stack);
     INFO_PRINT("Capsule execution completed successfully");
+
+    //delete folder
+
+    
 
     return EXIT_SUCCESS;
 }
