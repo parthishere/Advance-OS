@@ -160,85 +160,6 @@ BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 100, 0, 1);
 - Privilege dropping
 - Resource limiting
 
-## Troubleshooting
-
-### Common Issues
-
-1. Permission Errors
-```bash
-# Fix permissions
-chmod 644 test.txt
-sudo chown user:user test.txt
-```
-
-2. Missing Libraries
-```bash
-# Install required libraries
-sudo apt-get install libseccomp2
-```
-
-3. Compilation Errors
-- Check header file locations
-- Verify library linkage
-- Update system packages
-
-## Security Considerations
-
-### 1. Attack Vectors
-- System call interception
-- File permission bypass
-- Privilege escalation attempts
-
-### 2. Mitigations
-- Strict syscall filtering
-- Limited file access
-- No new privileges flag
-
-### 3. Best Practices
-- Regular security updates
-- Minimal privilege principle
-- Comprehensive logging
-
-## Future Improvements
-
-1. Enhanced Security
-- Network access control
-- Resource quotas
-- Process isolation
-
-2. Functionality
-- Dynamic rule configuration
-- Extended file operations
-- Custom security policies
-
-3. Monitoring
-- Real-time violation alerts
-- Detailed audit logging
-- Performance metrics
-
-## Contributing
-1. Fork the repository
-2. Create feature branch
-3. Submit pull request with tests
-4. Ensure documentation updates
-
-## Author
-Parth Thakkar
-Date: 8/11/24
-
-## License
-This project is licensed under GPL - see the LICENSE file for details.
-
-## References
-1. Seccomp Documentation
-2. Linux Kernel Documentation
-3. BPF Programming Guide
-4. System Call Reference
-
----
-
-### Note
-This sandbox implementation demonstrates basic security principles but should not be used for production environments without additional hardening and testing.
 
 ### Directory Structure
 ```
@@ -253,4 +174,4 @@ This sandbox implementation demonstrates basic security principles but should no
 └── README.md
 ```
 
-For detailed implementation questions or issues, please refer to the documentation or raise an issue in the repository.
+For detailed implementation questions or issues contact @: ParthRajeshkumar.Thakkar@colorado.edu.
