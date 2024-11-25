@@ -1,15 +1,15 @@
 /*********************************************************************
  * Advanced OS Assignment 2
  * File: container_implementation.c
- * 
- * Purpose: 
+ *
+ * Purpose:
  *     Implements a container system using Linux namespaces and cgroups
  *     for process isolation and resource control. Features filesystem
  *     isolation, process namespace separation, and resource limiting.
- * 
+ *
  * Author: Parth Thakkar
  * Date: 8/11/24
- * 
+ *
  * Copyright (c) 2024 Parth Thakkar
  * All rights reserved.
  *********************************************************************/
@@ -18,23 +18,23 @@
 #define _GNU_SOURCE
 
 /* System Headers */
-#include <stdio.h>      /* Standard I/O operations */
-#include <linux/seccomp.h>  /* Secure computing mode */
-#include <unistd.h>     /* UNIX standard functions */
-#include <stdlib.h>     /* Standard library definitions */
-#include <fcntl.h>      /* File control options */
-#include <zip.h>        /* ZIP archive handling */
-#include <sys/wait.h>   /* Process wait functions */
-#include <sys/mount.h>  /* Mount operations */
-#include <sys/stat.h>   /* File status and permissions */
-#include <sys/types.h>  /* System data type definitions */
-#include <linux/sched.h> /* Scheduling parameters and clone flags */
-#include <sched.h>      /* Process scheduling operations */
-#include <sys/syscall.h> /* System call numbers */
-#include <unistd.h>     /* UNIX standard function definitions */
-#include <signal.h>     /* Signal handling */
-#include <string.h>     /* String operations */
-#include <errno.h>      /* System error numbers */
+#include <stdio.h>         /* Standard I/O operations */
+#include <linux/seccomp.h> /* Secure computing mode */
+#include <unistd.h>        /* UNIX standard functions */
+#include <stdlib.h>        /* Standard library definitions */
+#include <fcntl.h>         /* File control options */
+#include <zip.h>           /* ZIP archive handling */
+#include <sys/wait.h>      /* Process wait functions */
+#include <sys/mount.h>     /* Mount operations */
+#include <sys/stat.h>      /* File status and permissions */
+#include <sys/types.h>     /* System data type definitions */
+#include <linux/sched.h>   /* Scheduling parameters and clone flags */
+#include <sched.h>         /* Process scheduling operations */
+#include <sys/syscall.h>   /* System call numbers */
+#include <unistd.h>        /* UNIX standard function definitions */
+#include <signal.h>        /* Signal handling */
+#include <string.h>        /* String operations */
+#include <errno.h>         /* System error numbers */
 
 #include <linux/capability.h>
 #include <sys/types.h>
@@ -50,11 +50,11 @@
 #define MB_TO_BYTES(x) (x * 1024 * 1024)
 
 /* ANSI Color Codes for console output formatting */
-#define RED     "\x1b[31m"  /* Error messages */
-#define GREEN   "\x1b[32m"  /* Success/Info messages */
-#define YELLOW  "\x1b[33m"  /* Warning messages */
-#define BLUE    "\x1b[34m"  /* Debug messages */
-#define RESET   "\x1b[0m"   /* Reset color formatting */
+#define RED "\x1b[31m"    /* Error messages */
+#define GREEN "\x1b[32m"  /* Success/Info messages */
+#define YELLOW "\x1b[33m" /* Warning messages */
+#define BLUE "\x1b[34m"   /* Debug messages */
+#define RESET "\x1b[0m"   /* Reset color formatting */
 
 /* Debug Print Macros
  * These macros provide consistent formatting for different types of messages
@@ -72,13 +72,13 @@
 #define WARN_PRINT(fmt, ...) \
     printf(YELLOW "[WARN][%d] " fmt RESET "\n", getpid(), ##__VA_ARGS__)
 
-
-static int checkreturn(int res, const char *name, int line) {
-	if (res >= 0)
-		return res;
-	fprintf(stderr, "mkbox.c:%d: error: %s() failed: r=%d errno=%d (%s)\n",
-		line, name, res, errno, strerror(errno));
-	exit(-1);
+static int checkreturn(int res, const char *name, int line)
+{
+    if (res >= 0)
+        return res;
+    fprintf(stderr, "mkbox.c:%d: error: %s() failed: r=%d errno=%d (%s)\n",
+            line, name, res, errno, strerror(errno));
+    exit(-1);
 }
 
 #define ok(fname, arg...) checkreturn(fname(arg), #fname, __LINE__)
@@ -90,11 +90,83 @@ static int checkreturn(int res, const char *name, int line) {
  *
  * Contains necessary parameters for setting up a containerized environment
  */
-struct child_config {
-    char *zip_path;     /* Path to the container root filesystem ZIP */
-    char *hostname;     /* Hostname for the container */
-    char *mount_dir;    /* Mount point for container filesystem */
+struct child_config
+{
+    char *zip_path;  /* Path to the container root filesystem ZIP */
+    char *hostname;  /* Hostname for the container */
+    char *mount_dir; /* Mount point for container filesystem */
 };
+
+// Network configuration structure
+struct network_config
+{
+    char *container_ip;
+    char *container_netmask;
+    char *bridge_ip;
+    char *bridge_name;
+    char *veth_host;
+    char *veth_container;
+};
+
+/**
+ * Setup virtual ethernet pair for container
+ */
+int setup_veth_pair(const char *veth_host, const char *veth_container)
+{
+    char buffer[1024];
+
+    snprintf(buffer, sizeof(buffer), "ip link add %s type veth peer name %s", veth_host, veth_container);
+    system(buffer);
+
+    snprintff(buffer, sizeof(buffer), "ip link set %s up", veth_host);
+    snprintf(buffer);
+
+    return 0;
+}
+
+/**
+ * Setup bridge for container networking
+ */
+int setup_bridge(const char *bridge_name, const char *bridge_ip)
+{
+    char buffer[1024];
+
+    snprintf(buffer, sizeof(buffer), "ip link add name %s type bridge", bridge_name);
+    system(buffer);
+
+    snprintf(buffer, sizeof(buffer), "ip address add %s/24 dev %s", bridge_ip, bridge_name);
+    system(buffer);
+
+    snprintf(buffer, sizeof(buffer), "ip link set %s up", bridge_name);
+    system(buffer);
+
+    return 0;
+}
+
+/**
+ * Setup NAT for internet access
+ */
+int setup_nat(const char *bridge_name)
+{
+    char buffer[1024];
+    system("echo 1 > /proc/sys/net/ipv4/ip_forward");
+
+    snprintf(buffer, sizeof(buffer), "iptables -t nat -A POSTROUTING -s 172.17.0.0/16 -j MASQUERADE");
+    return 0;
+}
+
+/**
+ * Configure container network
+ */
+int setup_container_network(const char *veth_container,
+                            const char *container_ip,
+                            const char *container_netmask)
+{
+    char buffer[1024];
+    // snprintf(buffer, sizeof(buffer), "ip link set %s up", veth_container);
+
+    snprintf(buffer, sizeof(buffer), "ip addr add %s/%s dev %s", container_ip, container_netmask, veth_container);
+}
 
 /**
  * @enum subsystems_t
@@ -103,11 +175,12 @@ struct child_config {
  * Defines the various cgroup controllers that can be used for
  * resource management
  */
-typedef enum {
-    CPU,        /* CPU time and scheduling */
-    CPUSET,     /* CPU and memory node assignments */
-    IO,         /* Block I/O control */
-    MEMORY,     /* Memory usage control */
+typedef enum
+{
+    CPU,    /* CPU time and scheduling */
+    CPUSET, /* CPU and memory node assignments */
+    IO,     /* Block I/O control */
+    MEMORY, /* Memory usage control */
 } subsystems_t;
 
 /**
@@ -121,36 +194,40 @@ typedef enum {
  * @example
  *    const char *name = subsystem_name(MEMORY); // Returns "memory"
  */
-const char *subsystem_name(subsystems_t ss) {
-    switch (ss) {
+const char *subsystem_name(subsystems_t ss)
+{
+    switch (ss)
+    {
     case CPU:
-        return "cpu";     /* CPU controller */
+        return "cpu"; /* CPU controller */
     case CPUSET:
-        return "cpuset";  /* CPU set controller */
+        return "cpuset"; /* CPU set controller */
     case MEMORY:
-        return "memory";  /* Memory controller */
+        return "memory"; /* Memory controller */
     default:
-        return "cpu";     /* Default fallback */
+        return "cpu"; /* Default fallback */
     }
 }
 
 /**
  * @function cleanup_resources
  * @brief Cleans up all resources, unmounts filesystems, and removes cgroups
- * 
+ *
  * @param mount_dir Directory where filesystems were mounted
  * @param cgroup_name Name of the cgroup to remove
  * @return 0 on success, -1 on failure
  */
-int cleanup_resources(const char *mount_dir, const char *cgroup_name) {
+int cleanup_resources(const char *mount_dir, const char *cgroup_name)
+{
     int status = 0;
     char command[1024];
-    
+
     INFO_PRINT("Starting cleanup process");
 
     // 1. First unmount all procfs, sysfs, and other mounts
     DEBUG_PRINT("Unmounting proc filesystem");
-    if (umount("/proc") == -1) {
+    if (umount("/proc") == -1)
+    {
         WARN_PRINT("Failed to unmount /proc: %s", strerror(errno));
         status = -1;
     }
@@ -158,12 +235,14 @@ int cleanup_resources(const char *mount_dir, const char *cgroup_name) {
     // 2. Remove processes from cgroup
     char path[1024];
     snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/cgroup.procs", cgroup_name);
-    
+
     DEBUG_PRINT("Migrating processes out of cgroup");
     int fd = open("/sys/fs/cgroup/cgroup.procs", O_WRONLY);
-    if (fd != -1) {
-        const char *pid = "0";  // Moving to root cgroup
-        if (write(fd, pid, strlen(pid)) == -1) {
+    if (fd != -1)
+    {
+        const char *pid = "0"; // Moving to root cgroup
+        if (write(fd, pid, strlen(pid)) == -1)
+        {
             WARN_PRINT("Failed to migrate processes from cgroup: %s", strerror(errno));
             status = -1;
         }
@@ -172,35 +251,36 @@ int cleanup_resources(const char *mount_dir, const char *cgroup_name) {
 
     // 3. Remove cgroup
     DEBUG_PRINT("Removing cgroup: %s", cgroup_name);
-    if (remove_cgroup(NULL, cgroup_name) == -1) {
+    if (remove_cgroup(NULL, cgroup_name) == -1)
+    {
         WARN_PRINT("Failed to remove cgroup: %s", strerror(errno));
         status = -1;
     }
 
-    
+    // system("rm -rf test_progs");
 
-    
-
-    if (status == 0) {
+    if (status == 0)
+    {
         INFO_PRINT("Cleanup completed successfully");
-    } else {
+    }
+    else
+    {
         ERROR_PRINT("Cleanup completed with some errors");
     }
 
     return status;
 }
 
-
 /**
  * @function: extract_zip
- * 
+ *
  * @purpose: Extracts container rootfs from ZIP archive
- * 
+ *
  * @param zip_path: Path to ZIP file
  * @param target_dir: Extraction destination
- * 
+ *
  * @returns: 0 on success, -1 on failure
- * 
+ *
  * @note: Creates directory structure and extracts files
  */
 // Function to extract zip file
@@ -212,7 +292,7 @@ static int extract_zip(const char *zip_path, const char *target_dir)
     char buf[4096];
     int err;
 
-     DEBUG_PRINT("Starting zip extraction process");
+    DEBUG_PRINT("Starting zip extraction process");
     DEBUG_PRINT("Source: %s", zip_path);
     DEBUG_PRINT("Target: %s", target_dir);
 
@@ -271,8 +351,8 @@ static int extract_zip(const char *zip_path, const char *target_dir)
             char path[100];
             snprintf(path, sizeof(path), "%s/%s", target_dir, sb.name);
 
-            DEBUG_PRINT("Processing file %d/%d: %s", 
-                       i + 1, zip_get_num_entries(za, 0), sb.name);
+            DEBUG_PRINT("Processing file %d/%d: %s",
+                        i + 1, zip_get_num_entries(za, 0), sb.name);
             DEBUG_PRINT("File size: %lu bytes", sb.size);
             // to make directory
             if (sb.name[strlen(sb.name) - 1] == '/')
@@ -352,26 +432,24 @@ static int extract_zip(const char *zip_path, const char *target_dir)
     return 0;
 }
 
-
 /**
  * @function: create_cgroup
- * 
+ *
  * @purpose: Creates cgroup for resource control
- * 
+ *
  * @param group: Cgroup name
- * 
+ *
  * @returns: 0 on success, -1 on failure
- * 
+ *
  * @note: Sets up CPU, memory, and I/O controllers
  */
 // Function to create a new cgroup
 int create_cgroup(const char *group)
 {
-    const char * controllers = "+cpuset +cpu +io +memory +pids +rdma";
+    const char *controllers = "+cpuset +cpu +io +memory +pids +rdma";
     char path[1024];
     char pid_str[32];
     int fd;
-
 
     snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/", group);
     DEBUG_PRINT("Creating cgroup: group=%s", path);
@@ -381,19 +459,18 @@ int create_cgroup(const char *group)
         // errno is global var // bad thing to use although
         if (errno == EEXIST)
         {
-           WARN_PRINT("Group already exists: %s", path);
+            WARN_PRINT("Group already exists: %s", path);
         }
         else
         {
-            ERROR_PRINT("Failed to create group: %s (errno=%d: %s)", 
-                       path, errno, strerror(errno));
+            ERROR_PRINT("Failed to create group: %s (errno=%d: %s)",
+                        path, errno, strerror(errno));
             return -1;
         }
     }
     INFO_PRINT("Successfully created cgroup: %s", path);
     // memory.max
 
-    
     snprintf(path, sizeof(path), "/sys/fs/cgroup/cgroup.subtree_control");
 
     fd = open(path, O_WRONLY);
@@ -433,8 +510,6 @@ int create_cgroup(const char *group)
     return 0;
 }
 
-
-
 /**
  * @function remove_cgroup
  * @brief Removes a specified control group
@@ -449,14 +524,16 @@ int create_cgroup(const char *group)
  * @note Attempts to remove directory at /sys/fs/cgroup/<group>
  * @warning All processes must be removed from the cgroup before deletion
  */
-int remove_cgroup(const char *subsystem, const char *group) {
+int remove_cgroup(const char *subsystem, const char *group)
+{
     char path[1024];
-    
+
     /* Construct path to cgroup directory */
     snprintf(path, sizeof(path), "/sys/fs/cgroup/%s", group);
 
     /* Attempt to remove the cgroup directory */
-    if (rmdir(path) == -1) {
+    if (rmdir(path) == -1)
+    {
         perror("Failed to remove cgroup");
         return -1;
     }
@@ -504,7 +581,7 @@ int set_cpu_limit(const char *group, unsigned long limit_in_percent)
     snprintf(value, sizeof(value), "%d 100000", (limit_in_percent * 100000 / 100));
     printf("CPU limit set %lu, in controller cpu in file %s\n ", limit_in_percent, path);
 
-    fd = open(path, O_WRONLY );
+    fd = open(path, O_WRONLY);
     if (fd == -1)
     {
         perror("Failed to open cpu limit file");
@@ -529,16 +606,14 @@ int set_io_limit(const char *group, unsigned long limit_mb_per_sec)
     char value[32];
     int fd;
     int major = 259, minor = 0;
-    
+
     // blkio.throttle.read_bps_device, blkio.throttle.write_bps_device
     snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/io.max", group);
     snprintf(value, sizeof(value), "%d:%d rbps=%lu wbps=%lu", major, minor, (limit_mb_per_sec * 1024 * 1024), (limit_mb_per_sec * 1024 * 1024));
 
     printf("IO limit set %lu, in controller blkio in file %s\n ", limit_mb_per_sec, path);
 
-    
-
-    fd = open(path, O_WRONLY );
+    fd = open(path, O_WRONLY);
     if (fd == -1)
     {
         perror("Failed to open memory limit file");
@@ -588,24 +663,14 @@ void set_resource_limits()
     set_io_limit(group_name, 1);
     INFO_PRINT("Resource limits setup completed");
     INFO_PRINT("Cross checking resources \n");
-
-
-    
 }
-
-
-
-
-
-
 
 int setup_mounts()
 {
 
-    
     DEBUG_PRINT("Initializing mount namespace setup");
     /* mount the sandbox on top of itself in our new namespace */
-	/* it will become our root filesystem */
+    /* it will become our root filesystem */
 
     if (mount("proc", "/proc", "proc", 0, NULL) == -1)
     {
@@ -613,7 +678,6 @@ int setup_mounts()
         exit(EXIT_FAILURE);
     }
     INFO_PRINT("Successfully mounted proc filesystem");
-    
 
     // ok(mount, "/sys", "sys", NULL, MS_BIND|MS_REC, NULL);
     // ok(mount, "/dev", "dev", NULL, MS_BIND|MS_REC, NULL)
@@ -628,28 +692,26 @@ int setup_mounts()
     // system("ls -l /sys/fs/cgroup/");
     // // // Mount cgroup
     // if (mount("cgroup2", "/sys/fs/cgroup", "cgroup2", 0, NULL) == -1) {
-        
+
     //     ERROR_PRINT("Failed to mount cgroup: %s", strerror(errno));
     //     return -1;
     // }
     // INFO_PRINT("Mounted cgroup filesystem");
-
 
     return 1;
 }
 
 int child_function(void *arg)
 {
-   
+
     pid_t pid = getpid();
 
     struct child_config *config = arg;
-    
+
     INFO_PRINT("Child process initialized");
     DEBUG_PRINT("Configuration:");
     DEBUG_PRINT("  Hostname: %s", config->hostname);
     DEBUG_PRINT("  Mount directory: %s", config->mount_dir);
-
 
     DEBUG_PRINT("Setting hostname to: %s", config->hostname);
     if (sethostname(config->hostname, strlen(config->hostname)) == -1)
@@ -695,10 +757,6 @@ int child_function(void *arg)
         exit(EXIT_FAILURE);
     }
 
-    
-
-    
-
     // Execute shell
     INFO_PRINT("Launching shell");
     char *args[] = {"/bin/bash", NULL};
@@ -708,8 +766,7 @@ int child_function(void *arg)
 }
 
 int main(int argc, char *argv[])
-{   
-    
+{
 
     INFO_PRINT("Capsule initialization started");
     DEBUG_PRINT("Process ID: %d", getpid());
@@ -719,7 +776,7 @@ int main(int argc, char *argv[])
         printf("Usage: ./capsule <zipfile>\n");
         return 1;
     }
-     DEBUG_PRINT("Input zip file: %s", argv[1]);
+    DEBUG_PRINT("Input zip file: %s", argv[1]);
 
     struct child_config ch_config = {
         .zip_path = argv[1],
@@ -747,19 +804,11 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     set_resource_limits();
-    
-
-    
-
-     
-
-
-    
 
     // Create child process with new namespaces
     int flags = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
                 CLONE_NEWPID | CLONE_NEWNET;
-                DEBUG_PRINT("Namespace flags configured: 0x%x", flags);
+    DEBUG_PRINT("Namespace flags configured: 0x%x", flags);
     INFO_PRINT("Creating new namespaces");
     DEBUG_PRINT("  Mount namespace (CLONE_NEWNS)");
     DEBUG_PRINT("  UTS namespace (CLONE_NEWUTS)");
@@ -767,7 +816,6 @@ int main(int argc, char *argv[])
     DEBUG_PRINT("  PID namespace (CLONE_NEWPID)");
     DEBUG_PRINT("  Network namespace (CLONE_NEWNET)");
     DEBUG_PRINT("  User namespace (CLONE_NEWUSER)");
-
 
     pid_t child_pid = clone(child_function, stack + STACK_SIZE, flags | SIGCHLD, &ch_config);
     if (child_pid == -1)
@@ -801,8 +849,6 @@ int main(int argc, char *argv[])
 
     INFO_PRINT("Child process created successfully (PID: %d)", child_pid);
 
-   
-
     // Wait for child
     if (waitpid(child_pid, NULL, 0) == -1)
     {
@@ -813,11 +859,10 @@ int main(int argc, char *argv[])
     // Cleanup
     free(stack);
     INFO_PRINT("Capsule execution completed successfully");
-    
-    //delete folder
+
+    // delete folder
     cleanup_resources(MOUNT_DIR, "mygroup");
     // system("rm -rf /test_progs")
-    
 
     return EXIT_SUCCESS;
 }
