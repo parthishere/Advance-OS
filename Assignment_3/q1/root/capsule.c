@@ -36,6 +36,9 @@
 #include <string.h>     /* String operations */
 #include <errno.h>      /* System error numbers */
 
+#include <linux/capability.h>
+#include <sys/types.h>
+
 /* Constants and Macros */
 /* Define stack size for clone operation (1MB) */
 #define STACK_SIZE (1024 * 1024)
@@ -68,6 +71,17 @@
 
 #define WARN_PRINT(fmt, ...) \
     printf(YELLOW "[WARN][%d] " fmt RESET "\n", getpid(), ##__VA_ARGS__)
+
+
+static int checkreturn(int res, const char *name, int line) {
+	if (res >= 0)
+		return res;
+	fprintf(stderr, "mkbox.c:%d: error: %s() failed: r=%d errno=%d (%s)\n",
+		line, name, res, errno, strerror(errno));
+	exit(-1);
+}
+
+#define ok(fname, arg...) checkreturn(fname(arg), #fname, __LINE__)
 
 /* Structure Definitions */
 /**
@@ -118,6 +132,62 @@ const char *subsystem_name(subsystems_t ss) {
     default:
         return "cpu";     /* Default fallback */
     }
+}
+
+/**
+ * @function cleanup_resources
+ * @brief Cleans up all resources, unmounts filesystems, and removes cgroups
+ * 
+ * @param mount_dir Directory where filesystems were mounted
+ * @param cgroup_name Name of the cgroup to remove
+ * @return 0 on success, -1 on failure
+ */
+int cleanup_resources(const char *mount_dir, const char *cgroup_name) {
+    int status = 0;
+    char command[1024];
+    
+    INFO_PRINT("Starting cleanup process");
+
+    // 1. First unmount all procfs, sysfs, and other mounts
+    DEBUG_PRINT("Unmounting proc filesystem");
+    if (umount("/proc") == -1) {
+        WARN_PRINT("Failed to unmount /proc: %s", strerror(errno));
+        status = -1;
+    }
+
+    // 2. Remove processes from cgroup
+    char path[1024];
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/cgroup.procs", cgroup_name);
+    
+    DEBUG_PRINT("Migrating processes out of cgroup");
+    int fd = open("/sys/fs/cgroup/cgroup.procs", O_WRONLY);
+    if (fd != -1) {
+        const char *pid = "0";  // Moving to root cgroup
+        if (write(fd, pid, strlen(pid)) == -1) {
+            WARN_PRINT("Failed to migrate processes from cgroup: %s", strerror(errno));
+            status = -1;
+        }
+        close(fd);
+    }
+
+    // 3. Remove cgroup
+    DEBUG_PRINT("Removing cgroup: %s", cgroup_name);
+    if (remove_cgroup(NULL, cgroup_name) == -1) {
+        WARN_PRINT("Failed to remove cgroup: %s", strerror(errno));
+        status = -1;
+    }
+
+    
+
+    
+
+    if (status == 0) {
+        INFO_PRINT("Cleanup completed successfully");
+    } else {
+        ERROR_PRINT("Cleanup completed with some errors");
+    }
+
+    return status;
 }
 
 
@@ -534,18 +604,24 @@ int setup_mounts()
 
     
     DEBUG_PRINT("Initializing mount namespace setup");
-    if (mount("proc", "/proc", "proc", MS_REC|MS_PRIVATE, NULL) == -1)
+    /* mount the sandbox on top of itself in our new namespace */
+	/* it will become our root filesystem */
+
+    if (mount("proc", "/proc", "proc", 0, NULL) == -1)
     {
         perror("mount proc");
         exit(EXIT_FAILURE);
     }
     INFO_PRINT("Successfully mounted proc filesystem");
     
-    if (mount("sysfs", "/sys", "sysfs", MS_REC|MS_PRIVATE, NULL) == -1) {
-        ERROR_PRINT("Failed to mount sysfs: %s", strerror(errno));
-        return -1;
-    }
-    INFO_PRINT("Mounted sysfs");
+
+    // ok(mount, "/sys", "sys", NULL, MS_BIND|MS_REC, NULL);
+    // ok(mount, "/dev", "dev", NULL, MS_BIND|MS_REC, NULL)
+    // if (mount("sysfs", "/sys", "sysfs", MS_REC|MS_PRIVATE, NULL) == -1) {
+    //     ERROR_PRINT("Failed to mount sysfs: %s", strerror(errno));
+    //     return -1;
+    // }
+    // INFO_PRINT("Mounted sysfs");
 
     // system("mount | grep cgroup");
     // system("cat /proc/self/cgroup");
@@ -564,9 +640,6 @@ int setup_mounts()
 
 int child_function(void *arg)
 {
-
-    
-
    
     pid_t pid = getpid();
 
@@ -600,12 +673,6 @@ int child_function(void *arg)
     // - Correct /proc view (Mount NS)
     // - Everything works properly!
     // Setup mounts
-    DEBUG_PRINT("Configuring mount namespace");
-    if (setup_mounts() == -1)
-    {
-        perror("setup mounts");
-        exit(EXIT_FAILURE);
-    }
 
     // Change root
     DEBUG_PRINT("Changing root to: %s", config->mount_dir);
@@ -620,6 +687,15 @@ int child_function(void *arg)
         perror("chdir");
         exit(EXIT_FAILURE);
     }
+
+    DEBUG_PRINT("Configuring mount namespace");
+    if (setup_mounts() == -1)
+    {
+        perror("setup mounts");
+        exit(EXIT_FAILURE);
+    }
+
+    
 
     
 
@@ -662,8 +738,6 @@ int main(int argc, char *argv[])
     }
 
     // Set resource limits
-    set_resource_limits();
-
     // Allocate stack for child
     DEBUG_PRINT("Allocating stack (size: %d bytes)", STACK_SIZE);
     char *stack = malloc(STACK_SIZE);
@@ -672,10 +746,19 @@ int main(int argc, char *argv[])
         perror("malloc");
         exit(EXIT_FAILURE);
     }
+    set_resource_limits();
+    
+
+    
+
+     
+
+
+    
 
     // Create child process with new namespaces
     int flags = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
-                CLONE_NEWPID | CLONE_NEWNET | CLONE_THREAD;
+                CLONE_NEWPID | CLONE_NEWNET;
                 DEBUG_PRINT("Namespace flags configured: 0x%x", flags);
     INFO_PRINT("Creating new namespaces");
     DEBUG_PRINT("  Mount namespace (CLONE_NEWNS)");
@@ -684,6 +767,7 @@ int main(int argc, char *argv[])
     DEBUG_PRINT("  PID namespace (CLONE_NEWPID)");
     DEBUG_PRINT("  Network namespace (CLONE_NEWNET)");
     DEBUG_PRINT("  User namespace (CLONE_NEWUSER)");
+
 
     pid_t child_pid = clone(child_function, stack + STACK_SIZE, flags | SIGCHLD, &ch_config);
     if (child_pid == -1)
@@ -717,6 +801,8 @@ int main(int argc, char *argv[])
 
     INFO_PRINT("Child process created successfully (PID: %d)", child_pid);
 
+   
+
     // Wait for child
     if (waitpid(child_pid, NULL, 0) == -1)
     {
@@ -727,9 +813,10 @@ int main(int argc, char *argv[])
     // Cleanup
     free(stack);
     INFO_PRINT("Capsule execution completed successfully");
-
+    
     //delete folder
-
+    cleanup_resources(MOUNT_DIR, "mygroup");
+    // system("rm -rf /test_progs")
     
 
     return EXIT_SUCCESS;
