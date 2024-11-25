@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "cstdlib": "cpp",
+        "debug_print.h": "c",
+        "zip_utility.h": "c",
+        "cleanup.h": "c",
+        "child_function.h": "c",
+        "networks.h": "c"
+    }
+}

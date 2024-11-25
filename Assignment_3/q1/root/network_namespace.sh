@@ -4,8 +4,8 @@ if [ $1 ]; then
     echo "add namespace name in arg 1"
 fi
 
-sudo ip netns add container $1 # do not need this 
-sudo ip netns add container $2  # do not need this
+sudo ip netns add $1 # do not need this 
+sudo ip netns add $2  # do not need this
 sudo ip link add br0 type bridge
 sudo ip link set br0 up
 
