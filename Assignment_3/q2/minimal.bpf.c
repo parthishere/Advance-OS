@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /* Copyright (c) 2020 Facebook */
-#include <linux/bpf.h>
-#include <bpf/bpf_helpers.h>
 #include "vmlinux.h"
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_endian.h>
+
+
 
 /*
 Packet header definitions and byte order
@@ -105,7 +107,7 @@ static bool is_tcp(struct ethhdr *eth, void *data_end)
 	__sum16 check;
 		union {
 			struct {
-				__be32 saddr;
+				__be32 c;
 				__be32 daddr;
 			};
 			struct {
@@ -122,9 +124,13 @@ static bool is_tcp(struct ethhdr *eth, void *data_end)
 		return false; // there should be tcp header after this // we want to decode TCP see above tree to see different procolcol structure depeneding on what protocol we are decoding
 	}
 
-	if (ip->protocol)
+	// netinet/in.h.html
+	if (ip->protocol != IPPROTO_TCP)
 	{
+		return false;
 	}
+
+	return true;
 }
 
 /*
@@ -145,6 +151,8 @@ int handle_xdp(struct xdp_md *ctx)
 	void *data_end = (void *)(long)ctx->data_end;
 	int pkt_sz = data_end - data;
 
+	bpf_printk("packet size is %d", pkt_sz);
+
 	/*
 	// This is an Ethernet frame header.
 	struct ethhdr {
@@ -157,21 +165,97 @@ int handle_xdp(struct xdp_md *ctx)
 
 	if (!is_tcp(eth, data_end))
 	{
+		bpf_printk("[ERROR] not TCP");
 		return XDP_PASS;
 	}
 
-	bpf_printk("packet size is %d", pkt_sz);
 
-	void *ringbuf_space = bpf_ringbuf_reserve(&rb, 1, 0); // reserving one byte
+	// getting header
+	struct iphdr *ip = (struct iphdr *)(eth +1);
+	// ip->ihl: Internet Header Length is the length of the internet header in 32 bit words.
+	int ip_hdr_len = ip->ihl * 4; // we need to multiply as it is 32bit word, so total size would be (32words) * 4
+
+	if(ip_hdr_len < sizeof(struct iphdr)){
+		bpf_printk("[ERROR] ip header len is less than structure");
+		return XDP_PASS; // size should be same
+	}
+
+	if((void *)ip + ip_hdr_len > data_end){ // comparing the address=
+		bpf_printk("[ERROR] ip + header len is greater than total data len");
+		return XDP_PASS	; // ip_address (~0x8000) + ip_hdr_len (~16) = 0x8016 should be less than data end (~0x8040)
+	}
+
+	//  get the ip
+	// ip->addrs.daddr; // destination address
+	// ip->addrs.saddr; // source address
+
+
+	/*
+	
+	struct tcphdr {
+		__be16 source;
+		__be16 dest;
+		__be32 seq;
+		__be32 ack_seq;
+		__u16 res1: 4;
+		__u16 doff: 4;
+		__u16 fin: 1;
+		__u16 syn: 1;
+		__u16 rst: 1;
+		__u16 psh: 1;
+		__u16 ack: 1;
+		__u16 urg: 1;
+		__u16 ece: 1;
+		__u16 cwr: 1;
+		__be16 window;
+		__sum16 check;
+		__be16 urg_ptr;
+	};
+	
+	*/
+	// now we need to parse tcp header
+	// skip ip header
+	// struct tcphdr * tcp = (struct tcphdr *)(void *)(ip + 1); // one way
+	struct tcphdr * tcp = (struct tcphdr *)((void *)ip + ip_hdr_len); // another way
+
+	if ((void *) (tcp + 1) > data_end){
+		bpf_printk("[ERROR] There is no packet after TCP");
+		return XDP_PASS;
+	}
+
+	// Define the number of bytes you want to capture from the TCP header
+    // Typically, the TCP header is 20 bytes, but with options, it can be longer
+    // Here, we'll capture the first 32 bytes to include possible options
+	const int tcp_header_bytes = 32;
+
+	if ((void *)tcp + tcp_header_bytes > data_end){
+		bpf_printk("[ERROR] tcp + tcp_header_bytes len is greater than total data len");
+		return XDP_PASS;
+	}
+
+
+
+	void *ringbuf_space = bpf_ringbuf_reserve(&rb, tcp_header_bytes, 0); // reserving one byte
 	if (!ringbuf_space)
 	{
+		bpf_printk("[ERROR] Buffer reservation failed");
 		return XDP_PASS; // If reservation fails, skip processing
 	}
 
-	unsigned char byte = 1;
-	((unsigned char *)ringbuf_space)[0] = byte;
+
+	// Copy the TCP header bytes into the ring buffer
+    // Using a loop to ensure compliance with eBPF verifier
+	for (int i = 0; i < tcp_header_bytes; i++){
+		unsigned char byte = *( ((unsigned char *)tcp) + i );
+		((unsigned char *)ringbuf_space)[i] = byte;
+	}
+	
 
 	bpf_ringbuf_submit(ringbuf_space, 0);
 
+	// Print a debug message (will appear in kernel logs)
+    bpf_printk("Captured TCP header (%d bytes)", tcp_header_bytes);
+
 	return XDP_PASS;
 }
+
