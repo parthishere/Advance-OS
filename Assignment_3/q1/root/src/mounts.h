@@ -17,8 +17,10 @@ int setup_mounts()
     }
     INFO_PRINT("Successfully mounted proc filesystem");
 
-    // ok(mount, "/sys", "sys", NULL, MS_BIND|MS_REC, NULL);
-    // ok(mount, "/dev", "dev", NULL, MS_BIND|MS_REC, NULL)
+    // ok(mount, "sysfs", "/sys", "sysfs", 0, NULL);
+    // ok(mount, "tmpfs","/dev","tmpfs",MS_NOSUID | MS_STRICTATIME,NULL);
+    // ok(mount, "/dev", "dev", NULL, MS_BIND|MS_REC, NULL);
+
     // if (mount("sysfs", "/sys", "sysfs", MS_REC|MS_PRIVATE, NULL) == -1) {
     //     ERROR_PRINT("Failed to mount sysfs: %s", strerror(errno));
     //     return -1;

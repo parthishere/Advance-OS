@@ -7,52 +7,59 @@
 
 #include "debug_print.h"
 
-/**
+
+void rand_char(char *str,int size)
+{
+	char new[size];
+	for(int i=0;i<size;i++){
+		new[i] = 'A' + (rand() % 26);
+	}
+	new[size] = '\0';
+	strncpy(str,new,size);
+	return;
+}
+
+
+/**     
  * Setup virtual ethernet pair for container
  */
-int setup_veth_pair(const char *veth_host, const char *veth_container)
+int setup_veth_pair(network_config_t * conf)
 {
     char buffer[1024];
 
-    snprintf(buffer, sizeof(buffer), "ip link add %s type veth peer name %s", veth_host, veth_container);
-    system(buffer);
+    snprintf(buffer, sizeof(buffer), "ip link add %s type veth peer name %s", conf->veth_bridge_end, conf->veth_container_end);
+    ok(system, buffer);
 
-    snprintf(buffer, sizeof(buffer), "ip link set %s up", veth_host);
-    system(buffer);
+    snprintf(buffer, sizeof(buffer),"ip link set %s netns %d", conf->veth_container_end, conf->pid);
+    ok(system, buffer);
 
     return 0;
 }
 
 /**
- * Setup bridge for container networking
+ * Setup bridge for container networking // will be called on host
  */
-int setup_bridge(const char *bridge_name, const char *bridge_ip)
+int setup_bridge(network_config_t * conf)
 {
     char buffer[1024];
 
-    DEBUG_PRINT("Setting up bridge br0");
+    DEBUG_PRINT("Setting up bridge %s", conf->bridge_name);
     
     // Create bridge if it doesn't exist
-    if (system("ip link show br0 2>/dev/null") != 0) {
-        if (system("ip link add br0 type bridge") != 0) {
-            ERROR_PRINT("Failed to create bridge");
-            return -1;
-        }
+    snprintf(buffer, sizeof(buffer), "ip link show %s 2>/dev/null", conf->bridge_name);
+    if (system(buffer) != 0) {
+        snprintf(buffer, sizeof(buffer), "ip link add %s type bridge", conf->bridge_name);
+        ok(system, buffer);
     }
     
     // Enable bridge
-    if (system("ip link set br0 up") != 0) {
-        ERROR_PRINT("Failed to enable bridge");
-        return -1;
-    }
+    snprintf(buffer, sizeof(buffer), "ip link set %s up", conf->bridge_name);
+    ok(system, buffer);
 
-    // Set bridge IP if not already set
-    if (system("ip addr show br0 | grep '192.168.0.3' 2>/dev/null") != 0) {
-        if (system("ip address add 192.168.0.3/24 dev br0") != 0) {
-            ERROR_PRINT("Failed to set bridge IP");
-            return -1;
-        }
-    }
+    
+    snprintf(buffer, sizeof(buffer), "ip address add %s/24 dev %s", conf->bridge_ip, conf->bridge_name);
+    ok(system, buffer);
+    
 
     INFO_PRINT("Bridge setup completed successfully");
 
@@ -69,26 +76,29 @@ int setup_nat()
     system("echo 1 > /proc/sys/net/ipv4/ip_forward");
 
     snprintf(buffer, sizeof(buffer), "iptables -t nat -A POSTROUTING -s 172.17.0.0/16 -j MASQUERADE");
+    ok(system, buffer);
     return 0;
 }
 
 /**
- * Configure container network
+ * Configure container network // called in network
  */
-int setup_container_network(const char *veth_container,
-                            const char *container_ip,
-                            const char *container_netmask)
+int setup_container_network(network_config_t * conf)
 {
     char buffer[1024];
-    // snprintf(buffer, sizeof(buffer), "ip link set %s up", veth_container);
-
-    snprintf(buffer, sizeof(buffer), "ip addr add %s/%s dev %s", container_ip, container_netmask, veth_container);
+    // snprintf(buffer, sizeof(buffer), "ip link set %s up", veth_container_end);
+    snprintf(buffer, sizeof(buffer), "ip link set %s up", conf->veth_container_end);
+    ok(system, buffer);
+    snprintf(buffer, sizeof(buffer), "ip addr add %s/24 dev %s", conf->container_ip, conf->veth_container_end);
+    ok(system, buffer);
+    snprintf(buffer, sizeof(buffer), "ip route add default via %s", conf->bridge_ip);
+    ok(system, buffer);
 }
 
 int initialize_networking(network_config_t * config)
 {
-    setup_veth_pair(config->veth_host, config->veth_container);
-    setup_bridge(config->bridge_name, config->bridge_ip);
+    setup_bridge(config);
+    setup_veth_pair(config);
     setup_nat();
 }
 

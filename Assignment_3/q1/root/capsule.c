@@ -32,19 +32,28 @@
 
 
 
-
 int main(int argc, char *argv[])
 {
 
     INFO_PRINT("Capsule initialization started");
     DEBUG_PRINT("Process ID: %d", getpid());
 
-    if (argc != 2)
+    if (argc != 3)
     {
-        printf("Usage: ./capsule <zipfile>\n");
+        printf("Usage: ./capsule <zipfile> <CONTAINER_NO:1/2>\n");
         return 1;
     }
     DEBUG_PRINT("Input zip file: %s", argv[1]);
+
+
+    network_config_t conf = {0}; 
+    strncpy(conf.container_ip, ((strcmp(argv[2],"1") == 0) ? CONTAINER_ONE: CONTAINER_TWO), sizeof(conf.container_ip));
+    
+    strncpy(conf.veth_bridge_end, ((strcmp(argv[2],"1") == 0) ? BRIDGE_END_ONE : BRIDGE_END_TWO), sizeof(conf.veth_bridge_end)); // defaultl we will change it to set it to our bridge
+    strncpy(conf.bridge_ip, BRIDGE_IP, sizeof(conf.bridge_ip));
+    strncpy(conf.bridge_name, BRIDGE_NAME, sizeof(conf.bridge_name));
+    strncpy(conf.veth_container_end, VETH_CONTAINER_NAME, sizeof(conf.veth_container_end)); // continer end
+    conf.pid = 0;
 
     struct child_config ch_config = {
         .zip_path = argv[1],
@@ -75,7 +84,7 @@ int main(int argc, char *argv[])
 
     // Create child process with new namespaces
     int flags = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
-                CLONE_NEWPID | CLONE_NEWNET;
+                CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWUSER;
     DEBUG_PRINT("Namespace flags configured: 0x%x", flags);
     INFO_PRINT("Creating new namespaces");
     DEBUG_PRINT("  Mount namespace (CLONE_NEWNS)");
@@ -85,6 +94,8 @@ int main(int argc, char *argv[])
     DEBUG_PRINT("  Network namespace (CLONE_NEWNET)");
     DEBUG_PRINT("  User namespace (CLONE_NEWUSER)");
 
+
+    
     pid_t child_pid = clone(child_function, stack + STACK_SIZE, flags | SIGCHLD, &ch_config);
     if (child_pid == -1)
     {
@@ -117,6 +128,8 @@ int main(int argc, char *argv[])
 
     INFO_PRINT("Child process created successfully (PID: %d)", child_pid);
 
+    conf.pid = child_pid;
+    initialize_networking(&conf);
     // Wait for child
     if (waitpid(child_pid, NULL, 0) == -1)
     {

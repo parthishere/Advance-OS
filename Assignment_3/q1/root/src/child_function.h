@@ -40,6 +40,8 @@ int child_function(void *arg)
     // - Everything works properly!
     // Setup mounts
 
+    setup_container_network(&config->network_config);
+
     // Change root
     DEBUG_PRINT("Changing root to: %s", config->mount_dir);
     if (chroot(config->mount_dir) == -1)

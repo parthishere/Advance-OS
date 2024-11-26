@@ -27,7 +27,35 @@
 #include <linux/capability.h>
 #include <sys/types.h>
 
+#define BRIDGE_NAME "br0"
+#define BRIDGE_IP "192.168.0.3"
+#define VETH_CONTAINER_NAME "veth0"
+#define BRIDGE_END_ONE "veth-br-0" 
+#define BRIDGE_END_TWO "veth-br-1" 
+
+
+
+#define CONTAINER_ONE "192.168.0.1"
+#define CONTAINER_TWO "192.168.0.2"
+
+#define CONTAINER_THREE "192.168.0.4" // NOT USED
+#define CONTAINER_FOUR "192.168.0.5" // NOT USED 
+
 /* Structure Definitions */
+
+
+// Network configuration structure
+typedef struct 
+{
+    char container_ip[100];
+    char bridge_ip[100]; // fixed 
+    char bridge_name[100]; // bridge name (br0)
+    char veth_bridge_end[100]; // interface bridge (veth-br0-1 pair)
+    char veth_container_end[100]; // other pair veth0
+    int pid;
+}network_config_t;
+
+
 /**
  * @struct child_config
  * @brief Configuration structure for child process initialization
@@ -39,18 +67,8 @@ struct child_config
     char *zip_path;  /* Path to the container root filesystem ZIP */
     char *hostname;  /* Hostname for the container */
     char *mount_dir; /* Mount point for container filesystem */
+    network_config_t network_config;
 };
-
-// Network configuration structure
-typedef struct 
-{
-    char *container_ip;
-    char *container_netmask;
-    char *bridge_ip;
-    char *bridge_name;
-    char *veth_host;
-    char *veth_container;
-}network_config_t;
 
 
 /* ANSI Color Codes for console output formatting */
