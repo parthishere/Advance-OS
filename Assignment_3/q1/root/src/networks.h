@@ -60,6 +60,8 @@ int setup_bridge(network_config_t * conf)
     snprintf(buffer, sizeof(buffer), "ip address add %s/24 dev %s", conf->bridge_ip, conf->bridge_name);
     ok(system, buffer);
     
+    // snprintf(buffer, sizeof(buffer), "sudo ip link set %s master %s", conf->veth_bridge_end, conf->bridge_name);
+    // ok(system, buffer);
 
     INFO_PRINT("Bridge setup completed successfully");
 
@@ -93,6 +95,8 @@ int setup_container_network(network_config_t * conf)
     ok(system, buffer);
     snprintf(buffer, sizeof(buffer), "ip route add default via %s", conf->bridge_ip);
     ok(system, buffer);
+
+    ok(system, "ip link set lo up");
 }
 
 int initialize_networking(network_config_t * config)

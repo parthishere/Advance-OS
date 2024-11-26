@@ -6,7 +6,8 @@ all:
 	gcc -o test_filesystem test_filesystem.c
 	gcc -o test_tcp_server test_tcp_server.c
 	gcc -o test_tcp_client test_tcp_client.c
-
+	- rm ../test_progs.zip
+	zip -r ../test_progs.zip ../test_progs/
 
 run:
 	sudo ./test_tcp_server

@@ -5,6 +5,23 @@
 #include "mounts.h"
 #include "networks.h"
 
+
+
+
+//wrapper for pivot root syscall
+int pivot_root(char *a,char *b)
+{
+	if (mount(a,a,"bind",MS_BIND | MS_REC,"")<0){
+		printf("error mount: %s\n",strerror(errno));
+	}
+	if (mkdir(b,0755) <0){
+		printf("error mkdir %s\n",strerror(errno));
+	}
+	printf("pivot setup ok\n");
+
+	return syscall(SYS_pivot_root,a,b);
+}
+
 int child_function(void *arg)
 {
 
@@ -23,6 +40,8 @@ int child_function(void *arg)
         perror("sethostname");
         exit(EXIT_FAILURE);
     }
+    //set new system info
+	setdomainname(config->hostname, strlen(config->hostname));	
 
     // PID Namespace alone:
     // - Has new PIDs
@@ -41,6 +60,10 @@ int child_function(void *arg)
     // Setup mounts
 
     setup_container_network(&config->network_config);
+
+    if (pivot_root(config->mount_dir,".old")<0){
+		printf("error pivot: %s\n",strerror(errno));
+	}
 
     // Change root
     DEBUG_PRINT("Changing root to: %s", config->mount_dir);

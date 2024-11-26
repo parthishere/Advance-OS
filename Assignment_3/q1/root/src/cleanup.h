@@ -52,7 +52,7 @@ int cleanup_resources(const char *mount_dir, const char *cgroup_name)
         status = -1;
     }
 
-    // system("rm -rf test_progs");
+    // system("rm -rf test_progs/");
 
     if (status == 0)
     {

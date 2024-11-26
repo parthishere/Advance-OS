@@ -38,7 +38,7 @@ int main()
        AF_INET6
 
     */
-    if (inet_pton(AF_INET, "192.168.5.1", &serv_addr.sin_addr) <= 0)
+    if (inet_pton(AF_INET, "192.168.0.1", &serv_addr.sin_addr) <= 0)
     {
         printf("\nInvalid address/ Address not supported \n");
         return -1;

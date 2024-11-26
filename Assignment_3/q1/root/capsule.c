@@ -95,7 +95,8 @@ int main(int argc, char *argv[])
     DEBUG_PRINT("  User namespace (CLONE_NEWUSER)");
 
 
-    
+    system("mount --make-rprivate  /");
+	printf("starting...\n");
     pid_t child_pid = clone(child_function, stack + STACK_SIZE, flags | SIGCHLD, &ch_config);
     if (child_pid == -1)
     {
@@ -141,7 +142,7 @@ int main(int argc, char *argv[])
     free(stack);
     INFO_PRINT("Capsule execution completed successfully");
 
-    // delete folder
+    // delete folderMOUNT_DIR
     cleanup_resources(MOUNT_DIR, "mygroup");
     // system("rm -rf /test_progs")
 
