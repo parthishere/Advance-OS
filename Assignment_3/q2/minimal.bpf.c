@@ -72,9 +72,22 @@ Ethernet Header (ethhdr)
 
 #define ETH_P_IP 0x0800 // defined in if_ether.h file
 
+
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 // int my_pid = 0;
+
+// struct {
+//     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+//     __uint(key_size, sizeof(u32));
+//     __uint(value_size, sizeof(u32));
+// } events SEC(".maps");
+
+// SYN flood protection structure
+static const volatile unsigned int syn_rate_limit = 1024;     // Rate limiting threshold
+static unsigned long last_syn_time;     // Timestamp of last SYN
+static unsigned int syn_count;          // Count of SYN packets
+
 
 struct
 {
@@ -133,6 +146,52 @@ static bool is_tcp(struct ethhdr *eth, void *data_end)
 	return true;
 }
 
+
+bool is_syn_flood(struct tcphdr * tcp){
+	/*
+	
+	struct tcphdr {
+		__be16 source;
+		__be16 dest;
+		__be32 seq;
+		__be32 ack_seq;
+		__u16 res1: 4;
+		__u16 doff: 4;
+		__u16 fin: 1;
+		__u16 syn: 1;
+		__u16 rst: 1;
+		__u16 psh: 1;
+		__u16 ack: 1;
+		__u16 urg: 1;
+		__u16 ece: 1;
+		__u16 cwr: 1;
+		__be16 window;
+		__sum16 check;
+		__be16 urg_ptr;
+	};
+	
+	*/
+
+	// check if we are in syn and not ack packet
+	if (tcp->syn && !tcp->ack) {
+		// Increment SYN packet counter
+        syn_count++;
+		unsigned long current_time = bpf_ktime_get_ns();
+
+		// one second is passed 
+		if(current_time - last_syn_time > 1000000000){
+			syn_count = 0;
+			last_syn_time = current_time;
+		}
+
+		if(syn_count > 100){
+			return true;
+		}
+	}
+	else false;
+}
+
+
 /*
 struct xdp_md {
 	__u32 data;
@@ -168,7 +227,7 @@ int handle_xdp(struct xdp_md *ctx)
 		bpf_printk("[ERROR] not TCP");
 		return XDP_PASS;
 	}
-
+	
 
 	// getting header
 	struct iphdr *ip = (struct iphdr *)(eth +1);
@@ -222,6 +281,10 @@ int handle_xdp(struct xdp_md *ctx)
 		bpf_printk("[ERROR] There is no packet after TCP");
 		return XDP_PASS;
 	}
+
+
+	// get tcp header syn and ack values 
+	is_syn_flood(tcp);
 
 	// Define the number of bytes you want to capture from the TCP header
     // Typically, the TCP header is 20 bytes, but with options, it can be longer
