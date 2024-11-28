@@ -49,10 +49,10 @@ int main(int argc, char *argv[])
     network_config_t conf = {0}; 
     strncpy(conf.container_ip, ((strcmp(argv[2],"1") == 0) ? CONTAINER_ONE: CONTAINER_TWO), sizeof(conf.container_ip));
     
-    strncpy(conf.veth_bridge_end, ((strcmp(argv[2],"1") == 0) ? BRIDGE_END_ONE : BRIDGE_END_TWO), sizeof(conf.veth_bridge_end)); // defaultl we will change it to set it to our bridge
+    strncpy(conf.veth_bridge_pc_end, ((strcmp(argv[2],"1") == 0) ? BRIDGE_END_ONE : BRIDGE_END_TWO), sizeof(conf.veth_bridge_end)); // defaultl we will change it to set it to our bridge
     strncpy(conf.bridge_ip, BRIDGE_IP, sizeof(conf.bridge_ip));
     strncpy(conf.bridge_name, BRIDGE_NAME, sizeof(conf.bridge_name));
-    strncpy(conf.veth_container_end, VETH_CONTAINER_NAME, sizeof(conf.veth_container_end)); // continer end
+    strncpy(conf.veth_container_cb_end, VETH_CONTAINER1_CB1_NAME, sizeof(conf.veth_container_cb_end)); // continer end
     conf.pid = 0;
 
     struct child_config ch_config = {
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 
     // Create child process with new namespaces
     int flags = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
-                CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWUSER;
+                CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWUSER | SIGCHLD;
     DEBUG_PRINT("Namespace flags configured: 0x%x", flags);
     INFO_PRINT("Creating new namespaces");
     DEBUG_PRINT("  Mount namespace (CLONE_NEWNS)");

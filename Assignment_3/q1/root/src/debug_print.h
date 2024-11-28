@@ -29,17 +29,19 @@
 
 #define BRIDGE_NAME "br0"
 #define BRIDGE_IP "192.168.0.3"
-#define VETH_CONTAINER_NAME "veth0"
-#define BRIDGE_END_ONE "veth-br-0" 
-#define BRIDGE_END_TWO "veth-br-1" 
+#define BRIDGE_MAC "AA:AA:AA:AA:00:01"
 
+#define VETH_CONTAINER_CB1_NAME "veth1"
+#define VETH_BRIDGE_CB1_NAME "veth-br-1"
 
+#define VETH_CONTAINER2_CB2_NAME "veth2"
+#define VETH_BRIDGE_CB2_NAME "veth-br-2"
 
 #define CONTAINER_ONE "192.168.0.1"
-#define CONTAINER_TWO "192.168.0.2"
+#define CONTAINER_ONE_MAC "AA:AA:AA:AA:00:10"
 
-#define CONTAINER_THREE "192.168.0.4" // NOT USED
-#define CONTAINER_FOUR "192.168.0.5" // NOT USED 
+#define CONTAINER_TWO "192.168.0.2"
+#define CONTAINER_TWO_MAC "AA:AA:AA:AA:00:11"
 
 /* Structure Definitions */
 
@@ -48,10 +50,16 @@
 typedef struct 
 {
     char container_ip[100];
-    char bridge_ip[100]; // fixed 
+    char container_mac[18];
+    char bridge_ip[16]; // fixed 
+    char bridge_mac[18];
     char bridge_name[100]; // bridge name (br0)
-    char veth_bridge_end[100]; // interface bridge (veth-br0-1 pair)
-    char veth_container_end[100]; // other pair veth0
+
+    char veth_bridge_pb_end[100]; // bridge pc end (in bridge)
+    char veth_pc_pb_end[100]; // bridge_pc_end (in pc)
+
+    char veth_bridge_cb_end[100]; // interface bridge (veth-br0-1 pair)
+    char veth_container_cb_end[100]; // other pair veth0
     int pid;
 }network_config_t;
 
@@ -98,7 +106,7 @@ static int checkreturn(int res, const char *name, int line)
 {
     if (res >= 0)
         return res;
-    fprintf(stderr, "mkbox.c:%d: error: %s() failed: r=%d errno=%d (%s)\n",
+    fprintf(stderr, "continer.c:%d: error: %s() failed: r=%d errno=%d (%s)\n",
             line, name, res, errno, strerror(errno));
     exit(-1);
 }

@@ -27,11 +27,91 @@ int setup_veth_pair(network_config_t * conf)
 {
     char buffer[1024];
 
-    snprintf(buffer, sizeof(buffer), "ip link add %s type veth peer name %s", conf->veth_bridge_end, conf->veth_container_end);
+    printf("\n\r");
+    snprintf(buffer, sizeof(buffer), "ip link show %s &> /dev/null;", conf->veth_bridge_pb_end);
+    
+    if (system(buffer) == 0) {
+        DEBUG_PRINT("Veth pair already exists");
+        return 0;
+    }
+    
+    snprintf(buffer, sizeof(buffer), "ip link add name %s type veth peer name %s", conf->veth_bridge_pb_end, conf->veth_pc_pb_end);
+    printf("%s\n\r", buffer);
     ok(system, buffer);
 
-    snprintf(buffer, sizeof(buffer),"ip link set %s netns %d", conf->veth_container_end, conf->pid);
+    snprintf(buffer, sizeof(buffer), "ip link set %s address %s", conf->veth_bridge_pb_end, conf->bridge_name);
+    printf("%s\n\r", buffer);
     ok(system, buffer);
+
+    snprintf(buffer, sizeof(buffer), "ip addr add %s brd + dev %s", conf->bridge_ip, conf->veth_bridge_pb_end);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
+    snprintf(buffer, sizeof(buffer), "ip link set %s master %s", conf->veth_pc_pb_end, conf->bridge_name);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
+    snprintf(buffer, sizeof(buffer), "ip link set dev %s up", conf->veth_bridge_pb_end);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
+    snprintf(buffer, sizeof(buffer), "ip link set dev %s up", conf->veth_pc_pb_end);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
+    return 0;
+}
+
+/**     
+ * Setup virtual ethernet pair for container
+ */
+int setup_veth_pair_ns(network_config_t * conf)
+{
+    char buffer[1024];
+     printf("\n\r");
+    snprintf(buffer, sizeof(buffer), "ip link show %s &> /dev/null;", conf->veth_container_cb_end);
+    printf("%s\n\r", buffer);
+    if (system(buffer) == 0) {
+        DEBUG_PRINT("Veth pair already exists");
+        return 0;
+    }
+    
+    snprintf(buffer, sizeof(buffer), "ip link add name %s type veth peer name %s", conf->veth_container_cb_end, conf->veth_bridge_cb_end);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
+    snprintf(buffer, sizeof(buffer), "ip link set %s master %s", conf->veth_bridge_cb_end, conf->bridge_name);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
+    snprintf(buffer, sizeof(buffer), "ip link set dev %s up", conf->veth_bridge_cb_end);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
+    snprintf(buffer, sizeof(buffer), "ip link set %s netns %d", conf->veth_container_cb_end, conf->pid);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
+   
+    snprintf(buffer, sizeof(buffer), "ip netns exec %d ip addr add %s brd + dev %s", conf->pid, conf->container_ip, conf->veth_container_cb_end);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
+
+    snprintf(buffer, sizeof(buffer), "ip netns exec %d ip link set %s address %s", conf->pid, conf->veth_container_cb_end, conf->container_mac);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
+    snprintf(buffer, sizeof(buffer), "ip netns exec %d ip link set dev %s up", conf->pid, conf->container_ip, conf->veth_container_cb_end);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
+
+
+    snprintf(buffer, sizeof(buffer), "ip netns exec %d ip link set lo up", conf->pid);
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
+
 
     return 0;
 }
@@ -47,10 +127,13 @@ int setup_bridge(network_config_t * conf)
     
     // Create bridge if it doesn't exist
     snprintf(buffer, sizeof(buffer), "ip link show %s 2>/dev/null", conf->bridge_name);
-    if (system(buffer) != 0) {
-        snprintf(buffer, sizeof(buffer), "ip link add %s type bridge", conf->bridge_name);
-        ok(system, buffer);
+    if (system(buffer) == 0) {
+        DEBUG_PRINT("Veth pair already exists");
+        return 0;
     }
+
+    snprintf(buffer, sizeof(buffer), "ip link add name %s type bridge", conf->bridge_name);
+    ok(system, buffer);
     
     // Enable bridge
     snprintf(buffer, sizeof(buffer), "ip link set %s up", conf->bridge_name);
@@ -75,35 +158,42 @@ int setup_bridge(network_config_t * conf)
 int setup_nat()
 {
     char buffer[1024];
-    system("echo 1 > /proc/sys/net/ipv4/ip_forward");
+    system("sudo sysctl -w net.ipv4.ip_forward=1");
+
+    snprintf(buffer, sizeof(buffer), "sudo iptables -P FORWARD ACCEPT");
+    printf("%s\n\r", buffer);
+    ok(system, buffer);
 
     snprintf(buffer, sizeof(buffer), "iptables -t nat -A POSTROUTING -s 172.17.0.0/16 -j MASQUERADE");
+    printf("%s\n\r", buffer);
     ok(system, buffer);
     return 0;
 }
 
-/**
- * Configure container network // called in network
- */
-int setup_container_network(network_config_t * conf)
-{
-    char buffer[1024];
-    // snprintf(buffer, sizeof(buffer), "ip link set %s up", veth_container_end);
-    snprintf(buffer, sizeof(buffer), "ip link set %s up", conf->veth_container_end);
-    ok(system, buffer);
-    snprintf(buffer, sizeof(buffer), "ip addr add %s/24 dev %s", conf->container_ip, conf->veth_container_end);
-    ok(system, buffer);
-    snprintf(buffer, sizeof(buffer), "ip route add default via %s", conf->bridge_ip);
-    ok(system, buffer);
 
-    ok(system, "ip link set lo up");
+int check_connectivity(int pid, char * ip){
+    char buffer[1024];
+
+    snprintf(buffer, sizeof(buffer), "sudo ip netns exec %d ping -c 3 %s",pid, ip);
+    printf("%s\n\r", buffer);
+    system(buffer);
+}
+
+void check_ping(network_config_t * config){
+    check_connectivity(config->pid, config->container_ip);
 }
 
 int initialize_networking(network_config_t * config)
 {
+    printf("========================");
     setup_bridge(config);
+    printf("\n\r");
     setup_veth_pair(config);
+    printf("\n\r");
     setup_nat();
+    printf("\n\r");
+    check_ping(config);
+    printf("========================");
 }
 
 
