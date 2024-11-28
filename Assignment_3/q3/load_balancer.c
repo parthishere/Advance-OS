@@ -118,6 +118,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+    // skel->bss->syn_rate_limit
 	/* ensure BPF program only handles write() syscalls from our process */
 	// skel->bss->my_pid = getpid();
 

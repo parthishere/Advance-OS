@@ -5,6 +5,7 @@
 #include <bpf/bpf_endian.h>
 
 
+#include "load_balancer_helper.h"
 
 /*
 Packet header definitions and byte order
@@ -72,28 +73,94 @@ Ethernet Header (ethhdr)
 
 #define ETH_P_IP 0x0800 // defined in if_ether.h file
 
+#define ETH_ALEN	6
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 // int my_pid = 0;
-
-// struct {
-//     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
-//     __uint(key_size, sizeof(u32));
-//     __uint(value_size, sizeof(u32));
-// } events SEC(".maps");
-
-// SYN flood protection structure
-static const volatile unsigned int syn_rate_limit = 1024;     // Rate limiting threshold
-static unsigned long last_syn_time;     // Timestamp of last SYN
-static unsigned int syn_count;          // Count of SYN packets
-
 
 struct
 {
 	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, 1 << 24); // 16MB
 } rb SEC(".maps");
+
+
+struct backend_info {
+	__u32 ip;
+	unsigned char mac[ETH_ALEN];
+};
+
+// Backend IP and MAC address map
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(max_entries, 2); // two backends
+	__type(key, __u32);
+	__type(value, struct backend_info);
+} backends SEC(".maps");
+
+int client_ip = bpf_htonl(0xa000001);  // 10.0.0.1
+int load_balancer_ip = bpf_htonl(0xa00000a); // 10.0.0.10
+
+unsigned char client_mac[ETH_ALEN] = {0xDE, 0xAD, 0xAA, 0xAA, 0x0, 0x1};
+unsigned char load_balancer_mac[ETH_ALEN] = {0xDE, 0xAD, 0xAA, 0xAA, 0x0, 0x10};
+
+
+
+static __always_inline __u16 iph_csum(struct iphdr *iph)
+{
+
+	bpf_printk("before_checksum %02X, iphl %d" ,iph->check, iph->ihl);
+	iph->check = 0;
+
+
+	__u32 count = 5 << 2;
+	__u16 * addr = (__u16 *)iph;
+	unsigned long sum = 0;
+	while (count > 1) {
+		sum += *addr;
+		addr += 1;
+		count -= 2;
+	}
+	
+	//Fold sum to 16 bits: add carrier to result
+	if (sum>>16) {
+		sum = (sum & 0xffff) + (sum >> 16);
+	}
+	//one's complement
+	sum = ~sum % 0xFFFF;
+	
+
+
+	unsigned long long csum = bpf_csum_diff(0, 0, (unsigned int *)iph, sizeof(struct iphdr), 0);
+	for (int i = 0; i < 4; i++)
+    {
+        if (csum >> 16)
+            csum = (csum & 0xffff) + (csum >> 16);
+    }
+	csum = ~csum & 0xFFFF;
+	bpf_printk("after checksum %02X %02X\n\r" ,csum, sum);
+
+
+
+
+
+    // iph->check = 0;
+
+	// uint16_t sum = ((iph->ihl << 8) | iph->version) + ((iph->tos << 8) | iph->tot_len) + 
+	// ((iph->id << 8) + iph->frag_off) + 
+	// ((iph->ttl << 8) + iph->protocol) + 
+	// ((iph->addrs.saddr << 8) + iph->addrs.daddr);
+
+	// sum = (sum & 0xFFFF) + (sum >> 4);
+
+
+	return iph->check;
+    // unsigned long long csum = bpf_csum_diff(0, 0, (unsigned int *)iph, sizeof(struct iphdr), 0);
+    // return csum_fold_helper(csum);
+}
+
+
 
 static bool is_tcp(struct ethhdr *eth, void *data_end)
 {
@@ -146,50 +213,6 @@ static bool is_tcp(struct ethhdr *eth, void *data_end)
 	return true;
 }
 
-
-bool is_syn_flood(struct tcphdr * tcp){
-	/*
-	
-	struct tcphdr {
-		__be16 source;
-		__be16 dest;
-		__be32 seq;
-		__be32 ack_seq;
-		__u16 res1: 4;
-		__u16 doff: 4;
-		__u16 fin: 1;
-		__u16 syn: 1;
-		__u16 rst: 1;
-		__u16 psh: 1;
-		__u16 ack: 1;
-		__u16 urg: 1;
-		__u16 ece: 1;
-		__u16 cwr: 1;
-		__be16 window;
-		__sum16 check;
-		__be16 urg_ptr;
-	};
-	
-	*/
-
-	// check if we are in syn and not ack packet
-	if (tcp->syn && !tcp->ack) {
-		// Increment SYN packet counter
-        syn_count++;
-		unsigned long current_time = bpf_ktime_get_ns();
-
-		// one second is passed 
-		if(current_time - last_syn_time > 1000000000){
-			syn_count = 0;
-			last_syn_time = current_time;
-		}
-
-		if(syn_count > 100){
-			return true;
-		}
-	}
-	else false;
-}
 
 
 /*
@@ -244,7 +267,26 @@ int handle_xdp(struct xdp_md *ctx)
 		return XDP_PASS	; // ip_address (~0x8000) + ip_hdr_len (~16) = 0x8016 should be less than data end (~0x8040)
 	}
 
+
 	//  get the ip
+	bpf_printk("Received Source IP: 0x%x", bpf_ntohl(ip->saddr));
+    bpf_printk("Received Destination IP: 0x%x", bpf_ntohl(ip->daddr));
+    bpf_printk("Received Source MAC: %x:%x:%x:%x:%x:%x", eth->h_source[0], eth->h_source[1], eth->h_source[2], eth->h_source[3], eth->h_source[4], eth->h_source[5]);
+    bpf_printk("Received Destination MAC: %x:%x:%x:%x:%x:%x", eth->h_dest[0], eth->h_dest[1], eth->h_dest[2], eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
+
+	
+	if (ip->saddr == client_ip)
+    {
+        bpf_printk("Packet from client");
+
+
+	}
+	else 
+	{
+		bpf_printk("Packet from backend");
+	}
+
+	iph_csum(ip);
 	// ip->addrs.daddr; // destination address
 	// ip->addrs.saddr; // source address
 
@@ -282,10 +324,6 @@ int handle_xdp(struct xdp_md *ctx)
 		return XDP_PASS;
 	}
 
-
-	// get tcp header syn and ack values 
-	is_syn_flood(tcp);
-
 	// Define the number of bytes you want to capture from the TCP header
     // Typically, the TCP header is 20 bytes, but with options, it can be longer
     // Here, we'll capture the first 32 bytes to include possible options
@@ -298,7 +336,7 @@ int handle_xdp(struct xdp_md *ctx)
 
 
 
-	void *ringbuf_space = bpf_ringbuf_reserve(&rb, tcp_header_bytes, 0); // reserving one byte
+	void *ringbuf_space = bpf_ringbuf_reserve(&rb, tcp_header_bytes, 0); // reserving 32 byte
 	if (!ringbuf_space)
 	{
 		bpf_printk("[ERROR] Buffer reservation failed");
