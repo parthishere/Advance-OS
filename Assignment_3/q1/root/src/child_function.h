@@ -4,8 +4,14 @@
 #include "debug_print.h"
 #include "mounts.h"
 #include "networks.h"
+#include <sys/utsname.h>
 
 
+static void print_nodename() {
+  struct utsname utsname;
+  uname(&utsname);
+  printf("%s\n", utsname.nodename);
+}
 
 
 //wrapper for pivot root syscall
@@ -24,6 +30,11 @@ int pivot_root(char *a,char *b)
 
 int child_function(void *arg)
 {
+    sleep(10);
+    unshare(CLONE_NEWPID);
+
+    printf("New `net` Namespace:\n");
+    system("ip link");
 
     pid_t pid = getpid();
 
@@ -58,12 +69,6 @@ int child_function(void *arg)
     // - Correct /proc view (Mount NS)
     // - Everything works properly!
     // Setup mounts
-
-    setup_container_network(&config->network_config);
-
-    if (pivot_root(config->mount_dir,".old")<0){
-		printf("error pivot: %s\n",strerror(errno));
-	}
 
     // Change root
     DEBUG_PRINT("Changing root to: %s", config->mount_dir);

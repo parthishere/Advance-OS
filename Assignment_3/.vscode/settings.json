@@ -5,6 +5,14 @@
         "zip_utility.h": "c",
         "cleanup.h": "c",
         "child_function.h": "c",
-        "networks.h": "c"
+        "networks.h": "c",
+        "bpf.h": "c",
+        "resource.h": "c",
+        "vmlinux.h": "c",
+        "type_traits": "c",
+        "utility": "c",
+        "load_balancer_helper.h": "c",
+        "if_ether.h": "c",
+        "bpf_helpers.h": "c"
     }
 }

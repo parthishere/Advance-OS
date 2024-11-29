@@ -16,25 +16,15 @@ int setup_mounts()
     // /* it will become our root filesystem */
 
     // // ok(mount, "tmpfs","/dev","tmpfs", MS_NOSUID | MS_STRICTATIME, NULL);
-    if(unshare(CLONE_NEWNS) <0)
-		printf("unshare issue?\n");
+    
+	
     if (mount("proc", "/proc", "proc", 0, NULL) == -1)
     {
         perror("mount proc");
         exit(EXIT_FAILURE);
     }
-    // INFO_PRINT("Successfully mounted proc filesystem");
+    INFO_PRINT("Successfully mounted proc filesystem");
 
-
-	
-	mount("tmpfs","/dev","tmpfs",MS_NOSUID | MS_STRICTATIME,NULL);
-	if (mount("proc", "/proc", "proc",0, NULL) <0)
-		printf("error proc mount: %s\n",strerror(errno));
-	mount("t", "/sys", "sysfs", 0, NULL);
-
-	chdir("/"); //change to root dir, man page for pivot_root suggests this
-	if( umount2("/.old",MNT_DETACH)<0)
-		printf("error unmount old: %s\n",strerror(errno));
     
     // ok(mount, "sysfs", "/sys", "sysfs", 0, NULL);
 

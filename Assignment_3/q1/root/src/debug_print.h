@@ -28,19 +28,22 @@
 #include <sys/types.h>
 
 #define BRIDGE_NAME "br0"
-#define BRIDGE_IP "192.168.0.3"
+#define BRIDGE_IP "10.0.0.1/24"
 #define BRIDGE_MAC "AA:AA:AA:AA:00:01"
+
+#define VETH_BRIDGE_PB_NAME "veth0"
+#define VETH_PC_PB_NAME "veth-br-0"
 
 #define VETH_CONTAINER_CB1_NAME "veth1"
 #define VETH_BRIDGE_CB1_NAME "veth-br-1"
 
-#define VETH_CONTAINER2_CB2_NAME "veth2"
+#define VETH_CONTAINER_CB2_NAME "veth2"
 #define VETH_BRIDGE_CB2_NAME "veth-br-2"
 
-#define CONTAINER_ONE "192.168.0.1"
+#define CONTAINER_ONE "10.0.0.2/24"
 #define CONTAINER_ONE_MAC "AA:AA:AA:AA:00:10"
 
-#define CONTAINER_TWO "192.168.0.2"
+#define CONTAINER_TWO "10.0.0.3/24"
 #define CONTAINER_TWO_MAC "AA:AA:AA:AA:00:11"
 
 /* Structure Definitions */

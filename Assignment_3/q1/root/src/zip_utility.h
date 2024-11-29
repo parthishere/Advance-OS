@@ -34,7 +34,6 @@ static int extract_zip(const char *zip_path, const char *target_dir)
         return -1;
     }
 
-    INFO_PRINT("Successfully opened zip file with %d entries", (int)zip_get_num_entries(za, 0));
 
     for (int i = 0; i < zip_get_num_entries(za, 0); i++)
     {
@@ -83,9 +82,9 @@ static int extract_zip(const char *zip_path, const char *target_dir)
             char path[100];
             snprintf(path, sizeof(path), "%s/%s", target_dir, sb.name);
 
-            DEBUG_PRINT("Processing file %d/%d: %s",
-                        i + 1, (int)zip_get_num_entries(za, 0), sb.name);
-            DEBUG_PRINT("File size: %lu bytes", sb.size);
+            // DEBUG_PRINT("Processing file %d/%d: %s",
+            //             i + 1, (int)zip_get_num_entries(za, 0), sb.name);
+            // DEBUG_PRINT("File size: %lu bytes", sb.size);
             // to make directory
             if (sb.name[strlen(sb.name) - 1] == '/')
             {

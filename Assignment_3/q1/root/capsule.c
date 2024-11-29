@@ -34,6 +34,8 @@
 
 int main(int argc, char *argv[])
 {
+    printf("Original `net` Namespace:\n");
+    system("ip link");
 
     INFO_PRINT("Capsule initialization started");
     DEBUG_PRINT("Process ID: %d", getpid());
@@ -48,11 +50,18 @@ int main(int argc, char *argv[])
 
     network_config_t conf = {0}; 
     strncpy(conf.container_ip, ((strcmp(argv[2],"1") == 0) ? CONTAINER_ONE: CONTAINER_TWO), sizeof(conf.container_ip));
-    
-    strncpy(conf.veth_bridge_pc_end, ((strcmp(argv[2],"1") == 0) ? BRIDGE_END_ONE : BRIDGE_END_TWO), sizeof(conf.veth_bridge_end)); // defaultl we will change it to set it to our bridge
+    strncpy(conf.container_mac, ((strcmp(argv[2],"1") == 0) ? CONTAINER_ONE_MAC: CONTAINER_TWO_MAC), sizeof(conf.container_mac));
+
     strncpy(conf.bridge_ip, BRIDGE_IP, sizeof(conf.bridge_ip));
+    strncpy(conf.bridge_mac, BRIDGE_MAC, sizeof(conf.bridge_mac));
     strncpy(conf.bridge_name, BRIDGE_NAME, sizeof(conf.bridge_name));
-    strncpy(conf.veth_container_cb_end, VETH_CONTAINER1_CB1_NAME, sizeof(conf.veth_container_cb_end)); // continer end
+
+    strncpy(conf.veth_bridge_pb_end, VETH_BRIDGE_PB_NAME, sizeof(conf.veth_bridge_pb_end));
+    strncpy(conf.veth_pc_pb_end, VETH_PC_PB_NAME, sizeof(conf.veth_pc_pb_end));
+
+    strncpy(conf.veth_container_cb_end, ((strcmp(argv[2],"1") == 0) ? VETH_CONTAINER_CB1_NAME : VETH_CONTAINER_CB2_NAME), sizeof(conf.veth_container_cb_end));
+    strncpy(conf.veth_bridge_cb_end, ((strcmp(argv[2],"1") == 0) ? VETH_BRIDGE_CB1_NAME : VETH_BRIDGE_CB2_NAME), sizeof(conf.veth_bridge_cb_end));
+
     conf.pid = 0;
 
     struct child_config ch_config = {
@@ -83,21 +92,13 @@ int main(int argc, char *argv[])
     set_resource_limits();
 
     // Create child process with new namespaces
-    int flags = CLONE_NEWNS | CLONE_NEWUTS | CLONE_NEWIPC |
-                CLONE_NEWPID | CLONE_NEWNET | CLONE_NEWUSER | SIGCHLD;
+    int flags = CLONE_NEWIPC | CLONE_NEWUTS | CLONE_NEWNET | CLONE_NEWUSER | SIGCHLD | CLONE_NEWPID;
+
     DEBUG_PRINT("Namespace flags configured: 0x%x", flags);
     INFO_PRINT("Creating new namespaces");
-    DEBUG_PRINT("  Mount namespace (CLONE_NEWNS)");
-    DEBUG_PRINT("  UTS namespace (CLONE_NEWUTS)");
-    DEBUG_PRINT("  IPC namespace (CLONE_NEWIPC)");
-    DEBUG_PRINT("  PID namespace (CLONE_NEWPID)");
-    DEBUG_PRINT("  Network namespace (CLONE_NEWNET)");
-    DEBUG_PRINT("  User namespace (CLONE_NEWUSER)");
 
-
-    system("mount --make-rprivate  /");
 	printf("starting...\n");
-    pid_t child_pid = clone(child_function, stack + STACK_SIZE, flags | SIGCHLD, &ch_config);
+    pid_t child_pid = clone(child_function, stack + STACK_SIZE, flags, &ch_config);
     if (child_pid == -1)
     {
         perror("clone");
@@ -129,8 +130,12 @@ int main(int argc, char *argv[])
 
     INFO_PRINT("Child process created successfully (PID: %d)", child_pid);
 
+    // Here, <pid> should be replaced by the process ID of the process in the child namespace as observed by the parent
     conf.pid = child_pid;
+    // conf.pid = 1;
     initialize_networking(&conf);
+
+
     // Wait for child
     if (waitpid(child_pid, NULL, 0) == -1)
     {
@@ -144,6 +149,7 @@ int main(int argc, char *argv[])
 
     // delete folderMOUNT_DIR
     cleanup_resources(MOUNT_DIR, "mygroup");
+    cleanup_networking(&conf);
     // system("rm -rf /test_progs")
 
     return EXIT_SUCCESS;
