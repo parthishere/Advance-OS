@@ -105,14 +105,12 @@ int load_balancer_ip = bpf_htonl(0xa00000a); // 10.0.0.10
 unsigned char client_mac[ETH_ALEN] = {0xDE, 0xAD, 0xAA, 0xAA, 0x0, 0x1};
 unsigned char load_balancer_mac[ETH_ALEN] = {0xDE, 0xAD, 0xAA, 0xAA, 0x0, 0x10};
 
-
+static uint8_t round_robin = 0;
 
 static __always_inline __u16 iph_csum(struct iphdr *iph)
 {
 
-	bpf_printk("before_checksum %02X, iphl %d" ,iph->check, iph->ihl);
 	iph->check = 0;
-
 
 	__u32 count = 5 << 2;
 	__u16 * addr = (__u16 *)iph;
@@ -129,35 +127,8 @@ static __always_inline __u16 iph_csum(struct iphdr *iph)
 	}
 	//one's complement
 	sum = ~sum % 0xFFFF;
-	
 
-
-	unsigned long long csum = bpf_csum_diff(0, 0, (unsigned int *)iph, sizeof(struct iphdr), 0);
-	for (int i = 0; i < 4; i++)
-    {
-        if (csum >> 16)
-            csum = (csum & 0xffff) + (csum >> 16);
-    }
-	csum = ~csum & 0xFFFF;
-	bpf_printk("after checksum %02X %02X\n\r" ,csum, sum);
-
-
-
-
-
-    // iph->check = 0;
-
-	// uint16_t sum = ((iph->ihl << 8) | iph->version) + ((iph->tos << 8) | iph->tot_len) + 
-	// ((iph->id << 8) + iph->frag_off) + 
-	// ((iph->ttl << 8) + iph->protocol) + 
-	// ((iph->addrs.saddr << 8) + iph->addrs.daddr);
-
-	// sum = (sum & 0xFFFF) + (sum >> 4);
-
-
-	return iph->check;
-    // unsigned long long csum = bpf_csum_diff(0, 0, (unsigned int *)iph, sizeof(struct iphdr), 0);
-    // return csum_fold_helper(csum);
+	return sum;
 }
 
 
@@ -280,83 +251,36 @@ int handle_xdp(struct xdp_md *ctx)
         bpf_printk("Packet from client");
 
 
+		int key = round_robin % 2;
+		struct backend_info *backend = bpf_map_lookup_elem(&backends, &key);
+		if (!backend)
+			return XDP_PASS;
+		ip->daddr = backend->ip;
+
+		round_robin++;
+		round_robin%=2;
+		
 	}
 	else 
 	{
 		bpf_printk("Packet from backend");
+		ip->daddr = client_ip;
+		__builtin_memcpy(eth->h_dest, client_mac, ETH_ALEN);
 	}
+	ip->saddr = load_balancer_ip;
+	__builtin_memcpy(eth->h_source, load_balancer_mac, ETH_ALEN);
 
-	iph_csum(ip);
-	// ip->addrs.daddr; // destination address
-	// ip->addrs.saddr; // source address
-
-
-	/*
-	
-	struct tcphdr {
-		__be16 source;
-		__be16 dest;
-		__be32 seq;
-		__be32 ack_seq;
-		__u16 res1: 4;
-		__u16 doff: 4;
-		__u16 fin: 1;
-		__u16 syn: 1;
-		__u16 rst: 1;
-		__u16 psh: 1;
-		__u16 ack: 1;
-		__u16 urg: 1;
-		__u16 ece: 1;
-		__u16 cwr: 1;
-		__be16 window;
-		__sum16 check;
-		__be16 urg_ptr;
-	};
-	
-	*/
-	// now we need to parse tcp header
-	// skip ip header
-	// struct tcphdr * tcp = (struct tcphdr *)(void *)(ip + 1); // one way
-	struct tcphdr * tcp = (struct tcphdr *)((void *)ip + ip_hdr_len); // another way
-
-	if ((void *) (tcp + 1) > data_end){
-		bpf_printk("[ERROR] There is no packet after TCP");
-		return XDP_PASS;
-	}
-
-	// Define the number of bytes you want to capture from the TCP header
-    // Typically, the TCP header is 20 bytes, but with options, it can be longer
-    // Here, we'll capture the first 32 bytes to include possible options
-	const int tcp_header_bytes = 32;
-
-	if ((void *)tcp + tcp_header_bytes > data_end){
-		bpf_printk("[ERROR] tcp + tcp_header_bytes len is greater than total data len");
-		return XDP_PASS;
-	}
-
-
-
-	void *ringbuf_space = bpf_ringbuf_reserve(&rb, tcp_header_bytes, 0); // reserving 32 byte
-	if (!ringbuf_space)
-	{
-		bpf_printk("[ERROR] Buffer reservation failed");
-		return XDP_PASS; // If reservation fails, skip processing
-	}
-
-
-	// Copy the TCP header bytes into the ring buffer
-    // Using a loop to ensure compliance with eBPF verifier
-	for (int i = 0; i < tcp_header_bytes; i++){
-		unsigned char byte = *( ((unsigned char *)tcp) + i );
-		((unsigned char *)ringbuf_space)[i] = byte;
-	}
+	ip->check = iph_csum(ip);
 	
 
-	bpf_ringbuf_submit(ringbuf_space, 0);
+	bpf_printk("Redirecting packet to new IP 0x%x from IP 0x%x", 
+                bpf_ntohl(ip->daddr), 
+                bpf_ntohl(ip->saddr)
+            );
+    bpf_printk("New Dest MAC: %x:%x:%x:%x:%x:%x", eth->h_dest[0], eth->h_dest[1], eth->h_dest[2], eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
+    bpf_printk("New Source MAC: %x:%x:%x:%x:%x:%x\n", eth->h_source[0], eth->h_source[1], eth->h_source[2], eth->h_source[3], eth->h_source[4], eth->h_source[5]);
 
-	// Print a debug message (will appear in kernel logs)
-    bpf_printk("Captured TCP header (%d bytes)", tcp_header_bytes);
 
-	return XDP_PASS;
+	return XDP_TX;
 }
 

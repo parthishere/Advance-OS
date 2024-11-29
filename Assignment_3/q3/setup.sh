@@ -2,7 +2,7 @@
 
 set -xe
 
-part_mac="DE:AD:AA:AA:00:"
+part_mac="DE:AD:BE:EF:00:"
 
 create_bridge () {
   if ! ip link show $1 &> /dev/null; then
@@ -13,6 +13,9 @@ create_bridge () {
   fi
 }
 
+
+# Create bridge br0
+# create_pair veth0 veth1 "10.0.0.1/24" br0 01
 create_pair () {
   if ! ip link show $1 &> /dev/null; then
     ip link add name $1 type veth peer name $2
@@ -26,6 +29,8 @@ create_pair () {
   fi
 }
 
+# Create h1 h2 namespace
+# create_pair_ns veth2 veth3 "10.0.0.2/24" br0 h2 02
 create_pair_ns () {
   if ! ip link show $2 &> /dev/null; then
     ip link add name $1 type veth peer name $2

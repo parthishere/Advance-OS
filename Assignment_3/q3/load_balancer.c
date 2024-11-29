@@ -7,10 +7,39 @@
 #include <unistd.h>
 #include <net/if.h>
 #include <sys/resource.h>
+#include <arpa/inet.h>
+
+#include <string.h>
+#include <stdlib.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 #include "load_balancer.skel.h"
+
+
+#define BRIDGE "10.0.0.1"
+#define BACKEND_ONE "10.0.0.2"
+#define BACKEND_TWO "10.0.0.3"
+#define LOAD_BALANCER "10.0.0.10"
+
+
+#define BRIDGE_NAME "br0"
+#define PART_MAC "DE:AD:AA:AA:00:"
+
+struct backend_info {
+    __u32 ip;
+    unsigned char mac[6];
+};
+
+static int parse_mac(const char *str, unsigned char *mac) {
+    if (sscanf(str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+               &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]) != 6) {
+        fprintf(stderr, "Invalid MAC address format\n");
+        return -1;
+    }
+    return 0;
+}
+
 
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
@@ -93,13 +122,36 @@ int main(int argc, char **argv)
 	int ifindex;
     int err;
 
-    if (argc != 2)
-    {
-        fprintf(stderr, "Usage: %s <ifname>\n", argv[0]);
+    if (argc != 6) {
+        fprintf(stderr, "Usage: %s <ifname> <backend1_ip> <backend1_mac> <backend2_ip> <backend2_mac>\n", argv[0]);
         return 1;
     }
 
     const char *ifname = argv[1];
+    struct backend_info backend[2];
+
+
+    // Parse backend 1
+    if (inet_pton(AF_INET, argv[2], &backend[0].ip) != 1) {
+        fprintf(stderr, "Invalid backend 1 IP address\n");
+        return 1;
+    }
+    if (parse_mac(argv[3], backend[0].mac) < 0) {
+        return 1;
+    }
+
+
+    // Parse backend 2
+    if (inet_pton(AF_INET, argv[4], &backend[1].ip) != 1) {
+        fprintf(stderr, "Invalid backend 2 IP address\n");
+        return 1;
+    }
+    if (parse_mac(argv[5], backend[1].mac) < 0) {
+        return 1;
+    }
+
+
+
     ifindex = if_nametoindex(ifname);
     if (ifindex == 0)
     {
@@ -118,7 +170,21 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-    // skel->bss->syn_rate_limit
+    
+    for (int i=0; i<2; i++){
+        if(bpf_map_update_elem(bpf_map__fd(skel->maps.backends), &i, &backend[i], 0) < 0)
+            goto cleanup;
+    }
+
+    printf("XDP load balancer configured with backends:\n");
+    printf("Backend 1 - IP: %s, MAC: %s\n", argv[2], argv[3]);
+    printf("Backend 2 - IP: %s, MAC: %s\n", argv[4], argv[5]);
+
+    char buffer[1024];
+    snprintf(buffer, sizeof(buffer), "sudo bash ./setup.sh %s %s %s %s", BRIDGE, BACKEND_ONE, BACKEND_TWO, LOAD_BALANCER);
+
+    system(buffer);
+
 	/* ensure BPF program only handles write() syscalls from our process */
 	// skel->bss->my_pid = getpid();
 
@@ -175,6 +241,8 @@ int main(int argc, char **argv)
 
 cleanup:
 	ring_buffer__free(rb);
+    load_balancer_bpf__detach(skel);
 	load_balancer_bpf__destroy(skel);
+    system("sudo bash ./teardown.sh");
 	return -err;
 }

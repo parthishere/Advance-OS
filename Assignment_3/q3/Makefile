@@ -73,7 +73,7 @@ all: $(APPS)
 
 .PHONY: clean
 clean:
-	sudo ./teardown.sh
+	- sudo bash ./teardown.sh
 	$(call msg,CLEAN)
 	$(Q)rm -rf $(OUTPUT) $(APPS)
 
