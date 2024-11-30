@@ -26,6 +26,7 @@ rm_ns () {
 # $2 veth bridge <-> pc pair in bridge end 
 # $3 veth contianer <-> bridge pair in container end 
 # $4 pid
+sudo sysctl -w net.ipv4.ip_forward=0
 
 # Remove bridge br0
 rm_bridge $1

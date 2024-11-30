@@ -88,9 +88,6 @@ int setup_nat()
     snprintf(buffer, sizeof(buffer), "sudo iptables -t nat -A POSTROUTING -s 10.0.0.1/24 -o wlp2s0 -j MASQUERADE");
     system(buffer);
 
-    // Add forwarding rules for bridge traffic only
-    system("sudo iptables -D FORWARD -i br0 -j ACCEPT 2>/dev/null");
-    system("sudo iptables -D FORWARD -o br0 -j ACCEPT 2>/dev/null");
 
     return 0;
 }
