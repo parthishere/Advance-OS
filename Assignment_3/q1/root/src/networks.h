@@ -91,25 +91,17 @@ int setup_nat()
 }
 
 
-void cleanup_networking(network_config_t *config)
+void cleanup_networking(network_config_t *conf)
 {
-    char buffer[1024];
-    snprintf(buffer, sizeof(buffer), "ip link set dev %s down", config->bridge_name);
-    printf("%s\n\r", buffer);
-    ok(system, buffer);
+    char buffer[2024];
 
-    snprintf(buffer, sizeof(buffer), "ip link delete %s type bridge", config->bridge_name);
-    printf("%s\n\r", buffer);
-    ok(system, buffer);
+    DEBUG_PRINT("Clanup");
 
-    snprintf(buffer, sizeof(buffer), "ip link delete %s type veth", config->veth_container_cb_end);
-    printf("%s\n\r", buffer);
-    ok(system, buffer);
+    snprintf(buffer, sizeof(buffer), 
+    "bash src/scripts/cleanup.sh %s %s %s %d", conf->bridge_name, conf->veth_bridge_pb_end, conf->veth_container_cb_end, conf->pid);
+    system(buffer);
 
-    snprintf(buffer, sizeof(buffer), "ip link delete %s type veth", config->veth_bridge_pb_end);
-    printf("%s\n\r", buffer);
-    ok(system, buffer);
-
+    INFO_PRINT("Bridge setup completed successfully");
     
 }
 
