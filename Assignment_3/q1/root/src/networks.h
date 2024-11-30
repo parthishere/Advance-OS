@@ -27,39 +27,41 @@ int setup_veth_pair(network_config_t *conf)
     char buffer[1024];
 
     printf("\n\r");
-    snprintf(buffer, sizeof(buffer), "ip link show %s &> /dev/null;", conf->veth_bridge_pb_end);
+    snprintf(buffer, sizeof(buffer), "sudo ip link show %s &> /dev/null;", conf->veth_bridge_pb_end);
 
     if (system(buffer) == 0)
     {
         DEBUG_PRINT("Veth pair Bridge and pc already exists");
-        snprintf(buffer, sizeof(buffer), "ip link delete %s type veth", conf->veth_bridge_pb_end);
+        snprintf(buffer, sizeof(buffer), "sudo ip link delete %s type veth", conf->veth_bridge_pb_end);
         printf("%s\n\r", buffer);
         ok(system, buffer);
     }
 
-    snprintf(buffer, sizeof(buffer), "ip link add name %s type veth peer name %s", conf->veth_bridge_pb_end, conf->veth_pc_pb_end);
+    snprintf(buffer, sizeof(buffer), "sudo ip link add name %s type veth peer name %s", conf->veth_bridge_pb_end, conf->veth_pc_pb_end);
     printf("%s\n\r", buffer);
     ok(system, buffer);
 
-    snprintf(buffer, sizeof(buffer), "ip link set %s address %s", conf->veth_bridge_pb_end, conf->bridge_mac);
+    snprintf(buffer, sizeof(buffer), "sudo ip link set %s address %s", conf->veth_bridge_pb_end, conf->bridge_mac);
     printf("%s\n\r", buffer);
     ok(system, buffer);
 
-    snprintf(buffer, sizeof(buffer), "ip addr add %s brd + dev %s", conf->bridge_ip, conf->veth_bridge_pb_end);
+    snprintf(buffer, sizeof(buffer), "sudo ip addr add %s brd + dev %s", conf->bridge_ip, conf->veth_bridge_pb_end);
     printf("%s\n\r", buffer);
     ok(system, buffer);
 
-    snprintf(buffer, sizeof(buffer), "ip link set %s master %s", conf->veth_pc_pb_end, conf->bridge_name);
+    snprintf(buffer, sizeof(buffer), "sudo ip link set %s master %s", conf->veth_pc_pb_end, conf->bridge_name);
     printf("%s\n\r", buffer);
     ok(system, buffer);
 
-    snprintf(buffer, sizeof(buffer), "ip link set dev %s up", conf->veth_bridge_pb_end);
+    snprintf(buffer, sizeof(buffer), "sudo ip link set dev %s up", conf->veth_bridge_pb_end);
     printf("%s\n\r", buffer);
     ok(system, buffer);
 
-    snprintf(buffer, sizeof(buffer), "ip link set dev %s up", conf->veth_pc_pb_end);
+    snprintf(buffer, sizeof(buffer), "sudo ip link set dev %s up", conf->veth_pc_pb_end);
     printf("%s\n\r", buffer);
     ok(system, buffer);
+
+    system("sudo ip link list");
 
     return 0;
 }
@@ -71,7 +73,7 @@ int setup_veth_pair_ns(network_config_t *conf)
 {
     char buffer[1024];
     printf("\n\r");
-    snprintf(buffer, sizeof(buffer), "ip link show %s &> /dev/null;", conf->veth_container_cb_end);
+    snprintf(buffer, sizeof(buffer), "sudo ip link show %s &> /dev/null;", conf->veth_container_cb_end);
     printf("%s\n\r", buffer);
     if (system(buffer) == 0)
     {
@@ -112,6 +114,8 @@ int setup_veth_pair_ns(network_config_t *conf)
     snprintf(buffer, sizeof(buffer), "ip netns exec %d ip link set lo up", conf->pid);
     printf("%s\n\r", buffer);
     ok(system, buffer);
+
+    system("ip link list");
 
     return 0;
 }

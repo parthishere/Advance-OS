@@ -24,6 +24,12 @@ int setup_mounts()
         exit(EXIT_FAILURE);
     }
     INFO_PRINT("Successfully mounted proc filesystem");
+    if (mount("tmpfs", "/dev", "tmpfs", 0, NULL) == -1)
+    {
+        perror("mount tmpfs");
+        exit(EXIT_FAILURE);
+    }
+    INFO_PRINT("Successfully mounted etc filesystem");
 
     
     // ok(mount, "sysfs", "/sys", "sysfs", 0, NULL);
