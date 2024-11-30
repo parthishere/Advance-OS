@@ -30,7 +30,7 @@
 #define MOUNT_DIR "."
 
 // sync primitive
-// int checkpoint[2];
+int checkpoint[2];
 
 // //wrapper for pivot root syscall
 // int pivot_root(char *a,char *b)
@@ -50,10 +50,7 @@ int child_function(void *arg)
 {
 
     // init sync primitive
-//   close(checkpoint[1]);
-
-    printf("New `net` Namespace:\n");
-    system("ip link");
+    close(checkpoint[1]);
 
     pid_t pid = getpid();
 
@@ -70,9 +67,8 @@ int child_function(void *arg)
         perror("sethostname");
         exit(EXIT_FAILURE);
     }
-    //set new system info
-	setdomainname(config->hostname, strlen(config->hostname));	
-
+    // set new system info
+    setdomainname(config->hostname, strlen(config->hostname));
 
     // PID Namespace alone:
     // - Has new PIDs
@@ -111,14 +107,12 @@ int child_function(void *arg)
         exit(EXIT_FAILURE);
     }
 
-    // char c;
-    // // wait for network setup in parent
-    // read(checkpoint[0], &c, 1);
+    char c;
+    // wait for network setup in parent
+    read(checkpoint[0], &c, 1);
 
     // setup network
-    system("ip link set lo up");
-    system("ip link set veth1 up");
-    system("ip addr add 169.254.1.2/30 dev veth1");
+    initialize_networking_in_container(&config->network_config);
 
     // Execute shell
     INFO_PRINT("Launching shell");
@@ -128,10 +122,11 @@ int child_function(void *arg)
     return EXIT_FAILURE;
 }
 
-
 int main(int argc, char *argv[])
 {
-   
+    // init sync primitive
+    pipe(checkpoint);
+    
     printf("Original `net` Namespace:\n");
     system("ip link");
 
@@ -145,10 +140,9 @@ int main(int argc, char *argv[])
     }
     DEBUG_PRINT("Input zip file: %s", argv[1]);
 
-
-    network_config_t conf = {0}; 
-    strncpy(conf.container_ip, ((strcmp(argv[2],"1") == 0) ? CONTAINER_ONE: CONTAINER_TWO), sizeof(conf.container_ip));
-    strncpy(conf.container_mac, ((strcmp(argv[2],"1") == 0) ? CONTAINER_ONE_MAC: CONTAINER_TWO_MAC), sizeof(conf.container_mac));
+    network_config_t conf = {0};
+    strncpy(conf.container_ip, ((strcmp(argv[2], "1") == 0) ? CONTAINER_ONE : CONTAINER_TWO), sizeof(conf.container_ip));
+    strncpy(conf.container_mac, ((strcmp(argv[2], "1") == 0) ? CONTAINER_ONE_MAC : CONTAINER_TWO_MAC), sizeof(conf.container_mac));
 
     strncpy(conf.bridge_ip, BRIDGE_IP, sizeof(conf.bridge_ip));
     strncpy(conf.bridge_mac, BRIDGE_MAC, sizeof(conf.bridge_mac));
@@ -157,8 +151,8 @@ int main(int argc, char *argv[])
     strncpy(conf.veth_bridge_pb_end, VETH_BRIDGE_PB_NAME, sizeof(conf.veth_bridge_pb_end));
     strncpy(conf.veth_pc_pb_end, VETH_PC_PB_NAME, sizeof(conf.veth_pc_pb_end));
 
-    strncpy(conf.veth_container_cb_end, ((strcmp(argv[2],"1") == 0) ? VETH_CONTAINER_CB1_NAME : VETH_CONTAINER_CB2_NAME), sizeof(conf.veth_container_cb_end));
-    strncpy(conf.veth_bridge_cb_end, ((strcmp(argv[2],"1") == 0) ? VETH_BRIDGE_CB1_NAME : VETH_BRIDGE_CB2_NAME), sizeof(conf.veth_bridge_cb_end));
+    strncpy(conf.veth_container_cb_end, ((strcmp(argv[2], "1") == 0) ? VETH_CONTAINER_CB1_NAME : VETH_CONTAINER_CB2_NAME), sizeof(conf.veth_container_cb_end));
+    strncpy(conf.veth_bridge_cb_end, ((strcmp(argv[2], "1") == 0) ? VETH_BRIDGE_CB1_NAME : VETH_BRIDGE_CB2_NAME), sizeof(conf.veth_bridge_cb_end));
 
     conf.pid = 0;
 
@@ -166,9 +160,6 @@ int main(int argc, char *argv[])
         .zip_path = argv[1],
         .hostname = "capsule",
         .mount_dir = MOUNT_DIR};
-
-    // chdir(MOUNT_DIR); // change dir
-    // chroot(MOUNT_DIR); // change root
 
     int err = 0;
 
@@ -188,17 +179,17 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    // set resource limits 
-    set_resource_limits();
+    // set resource limits
+    // set_resource_limits();
 
     system("sudo mount --make-rprivate /");
     // Create child process with new namespaces
-    int flags = CLONE_NEWNS | CLONE_NEWIPC | CLONE_NEWUTS | CLONE_NEWNET | CLONE_NEWPID | SIGCHLD ;
+    int flags = CLONE_NEWNS | CLONE_NEWIPC | CLONE_NEWUTS | CLONE_NEWNET | CLONE_NEWPID | SIGCHLD;
 
     DEBUG_PRINT("Namespace flags configured: 0x%x", flags);
     INFO_PRINT("Creating new namespaces");
 
-	printf("starting...\n");
+    printf("starting...\n");
     pid_t child_pid = clone(child_function, stack + STACK_SIZE, flags, &ch_config);
     if (child_pid == -1)
     {
@@ -208,34 +199,12 @@ int main(int argc, char *argv[])
     conf.pid = child_pid;
     INFO_PRINT("Child pid %d\n", child_pid);
     // conf.pid = 1;
-    // initialize_networking(&conf);
-
-    // init sync primitive
-    // pipe(checkpoint);
-
-    char* cmd;
-    asprintf(&cmd, "ip link set veth1 netns %d", child_pid);
-    system("ip link add veth0 type veth peer name veth1");
-    system(cmd);
-    system("ip link set veth0 up");
-    system("ip link list");
-    system("ip addr add 169.254.1.1/30 dev veth0");
-    system("ip link list");
 
 
-    // asprintf(&cmd, "ip netns exec %d ip link set lo up", child_pid);
-    // system(cmd);
-
-    // asprintf(&cmd, "ip netns exec %d ip link set veth1 up", child_pid);
-    // system(cmd);
-
-    // asprintf(&cmd, "ip netns exec %d ip addr add 169.254.1.2/30 dev veth1", child_pid);
-    // system(cmd);
-    free(cmd);
+    initialize_networking_in_host(&conf);
 
     // signal "done"
-    // close(checkpoint[1]);
-
+    close(checkpoint[1]);
 
     // char path[1024];
     // char pid_str[32];
@@ -263,8 +232,6 @@ int main(int argc, char *argv[])
     INFO_PRINT("Child process created successfully (PID: %d)", child_pid);
 
     // Here, <pid> should be replaced by the process ID of the process in the child namespace as observed by the parent
-   
-
 
     // Wait for child
     if (waitpid(child_pid, NULL, 0) == -1)
@@ -284,7 +251,6 @@ int main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
-
 
 // #define _GNU_SOURCE
 // #include <sys/types.h>
