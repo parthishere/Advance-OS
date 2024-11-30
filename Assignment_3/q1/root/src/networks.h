@@ -89,7 +89,8 @@ int setup_nat()
     system(buffer);
 
     // Add forwarding rules for bridge traffic only
-    system("sudo iptables -A FORWARD -i br0 -o br0 -j ACCEPT");
+    system("sudo iptables -D FORWARD -i br0 -j ACCEPT 2>/dev/null");
+    system("sudo iptables -D FORWARD -o br0 -j ACCEPT 2>/dev/null");
 
     return 0;
 }
