@@ -17,7 +17,7 @@ create_pair_ns () {
       ip link set $1 address $6
       ip link set dev $1 up
       ip link set lo up  # Bring up loopback interface
-      ip route add default via 10.0.0.1
+      ip route add default via ${8%/*}
     fi
     
   else

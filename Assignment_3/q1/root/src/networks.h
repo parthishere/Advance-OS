@@ -83,6 +83,14 @@ int setup_nat()
 {
     char buffer[1024];
     system("sudo sysctl -w net.ipv4.ip_forward=1 && sudo iptables -P FORWARD ACCEPT");
+    
+    // Add specific NAT rules without disturbing existing ones
+    snprintf(buffer, sizeof(buffer), "sudo iptables -t nat -A POSTROUTING -s 10.0.0.1/24 -o wlp2s0 -j MASQUERADE");
+    system(buffer);
+
+    // Add forwarding rules for bridge traffic only
+    system("sudo iptables -A FORWARD -i br0 -o br0 -j ACCEPT");
+
     return 0;
 }
 
