@@ -112,7 +112,7 @@ int child_function(void *arg)
     read(checkpoint[0], &c, 1);
 
     // setup network
-    initialize_networking_in_container(&config->network_config);
+    initialize_networking_in_container(&(config->network_config));
 
     // Execute shell
     INFO_PRINT("Launching shell");
@@ -159,7 +159,8 @@ int main(int argc, char *argv[])
     struct child_config ch_config = {
         .zip_path = argv[1],
         .hostname = "capsule",
-        .mount_dir = MOUNT_DIR};
+        .mount_dir = MOUNT_DIR,
+        .network_config = conf};
 
     int err = 0;
 

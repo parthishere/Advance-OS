@@ -1,8 +1,8 @@
-#!/bin/bash -xe
-
+#!/bin/bash
 
 
 create_pair_ns () {
+  echo "create pair ns "$1 $2 $3 $4 $5 $6 $7 $8
   if ! ip link show $2 &> /dev/null; then
     if [ "$7" = "1" ]; then
       echo "host :)"
@@ -14,9 +14,10 @@ create_pair_ns () {
     else
       echo "container :("
       ip addr add $3 brd + dev $1
-      ip link set $1 address "$6"
+      ip link set $1 address $6
       ip link set dev $1 up
       ip link set lo up  # Bring up loopback interface
+      ip route add default via 10.0.0.1
     fi
     
   else
@@ -33,5 +34,6 @@ create_pair_ns () {
 # $5 : pid (ns)
 # $6 : MAC last two bits
 # $7 : is host
-create_pair_ns $1 $2 $3 $4 $5 $6 $7
+# $8 : ip of bridge
+create_pair_ns $1 $2 $3 $4 $5 $6 $7 $8
 # create_pair_ns veth2 veth3 "10.0.0.2/24" br0 h2 "MAC" 1

@@ -28,9 +28,9 @@ int setup_veth_pair(network_config_t *conf)
     char buffer[1024];
 
     printf("\n\r");
-    
-    snprintf(buffer, sizeof(buffer), 
-    "bash src/scripts/create_pair.sh %s %s %s %s %s", conf->veth_bridge_pb_end, conf->veth_pc_pb_end, conf->bridge_ip, conf->bridge_name, conf->bridge_mac);
+
+    snprintf(buffer, sizeof(buffer),
+             "bash src/scripts/create_pair.sh %s %s %s %s %s", conf->veth_bridge_pb_end, conf->veth_pc_pb_end, conf->bridge_ip, conf->bridge_name, conf->bridge_mac);
     system(buffer);
 
     system("sudo ip link list");
@@ -43,12 +43,13 @@ int setup_veth_pair(network_config_t *conf)
  */
 int setup_veth_pair_ns(network_config_t *conf, bool is_host)
 {
-    char buffer[1024];
+    char buffer[2024];
 
     printf("\n\r");
-    
-    snprintf(buffer, sizeof(buffer), 
-    "bash src/scripts/create_pair_ns.sh %s %s %s %s %d %s %d", conf->veth_container_cb_end, conf->veth_bridge_cb_end, conf->container_ip, conf->bridge_name, conf->pid, conf->container_mac, is_host);
+    system("ls");
+
+    snprintf(buffer, sizeof(buffer),
+    "bash src/scripts/create_pair_ns.sh %s %s %s %s %d %s %d %s", conf->veth_container_cb_end, conf->veth_bridge_cb_end, conf->container_ip, conf->bridge_name, conf->pid, conf->container_mac, is_host, conf->bridge_ip);
     system(buffer);
 
     system("ip link list");
@@ -65,8 +66,8 @@ int setup_bridge(network_config_t *conf)
 
     DEBUG_PRINT("Setting up bridge %s", conf->bridge_name);
 
-    snprintf(buffer, sizeof(buffer), 
-    "bash src/scripts/create_bridge.sh %s", conf->bridge_name);
+    snprintf(buffer, sizeof(buffer),
+             "bash src/scripts/create_bridge.sh %s", conf->bridge_name);
     system(buffer);
 
     INFO_PRINT("Bridge setup completed successfully");
@@ -81,15 +82,9 @@ int setup_bridge(network_config_t *conf)
 int setup_nat()
 {
     char buffer[1024];
-    system(
-    "sudo sysctl -w net.ipv4.ip_forward=1 && \
-    iptables -P FORWARD ACCEPT && \
-    iptables -t nat -A POSTROUTING -s 172.17.0.0/16 -j MASQUERADE"
-    );
-
+    system("sudo sysctl -w net.ipv4.ip_forward=1 && sudo iptables -P FORWARD ACCEPT");
     return 0;
 }
-
 
 void cleanup_networking(network_config_t *conf)
 {
@@ -97,12 +92,11 @@ void cleanup_networking(network_config_t *conf)
 
     DEBUG_PRINT("Clanup");
 
-    snprintf(buffer, sizeof(buffer), 
-    "bash src/scripts/cleanup.sh %s %s %s %d", conf->bridge_name, conf->veth_bridge_pb_end, conf->veth_container_cb_end, conf->pid);
+    snprintf(buffer, sizeof(buffer),
+             "bash src/scripts/cleanup.sh %s %s %s %d", conf->bridge_name, conf->veth_bridge_pb_end, conf->veth_container_cb_end, conf->pid);
     system(buffer);
 
     INFO_PRINT("Bridge setup completed successfully");
-    
 }
 
 int initialize_networking_in_host(network_config_t *config)
@@ -118,12 +112,16 @@ int initialize_networking_in_host(network_config_t *config)
     printf("========================");
 }
 
-int initialize_networking_in_container(network_config_t *config)
+int initialize_networking_in_container(network_config_t *conf)
 {
-    printf("========================");
-    setup_veth_pair_ns(config, false);
-    printf("========================");
-}
 
+    // setup_veth_pair_ns(conf, true);
+    printf("========================");
+    char buffer[4096];
+
+    setup_veth_pair_ns(conf, false);
+
+    printf("====container : buffer %s==================\n\r", buffer);
+}
 
 #endif
