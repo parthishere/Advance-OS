@@ -43,6 +43,7 @@ create_pair_ns () {
     ip netns exec $5 ip link set $1 address "$part_mac""$6"
     ip netns exec $5 ip link set dev $1 up
     ip netns exec $5 ip link set lo up  # Bring up loopback interface
+    ip netns exec $5 ip route add default via br0
   else
     echo "Veth pair $1 <--> $2 already exists in namespace $5."
   fi

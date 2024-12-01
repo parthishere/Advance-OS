@@ -6,11 +6,13 @@
 # Check if correct number of arguments provided
 if [ "$#" -ne  1 ]; then
     echo "Usage: $0 <source_binary> "
-    echo "Example: $0 /usr/bin/python3"
+    echo "Example: $0 python3"
     exit 1
 fi
 
-SOURCE_BINARY="$1"
+
+SOURCE_NAME="$1"
+SOURCE_BINARY="$(which $1)"
 DEST_BASE_DIR="../.."
 
 # Check if source binary exists
@@ -19,6 +21,7 @@ if [ ! -f "$SOURCE_BINARY" ]; then
     exit 1
 fi
 
+cp $SOURCE_BINARY $DEST_BASE_DIR/bin
 
 # Create directories based on library locations and copy files
 ldd "$SOURCE_BINARY" | while read -r line; do

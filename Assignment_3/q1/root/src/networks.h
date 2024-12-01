@@ -83,9 +83,14 @@ int setup_nat()
 {
     char buffer[1024];
     system("sudo sysctl -w net.ipv4.ip_forward=1 && sudo iptables -P FORWARD ACCEPT");
+
+    // iptables -t nat -A POSTROUTING -s 192.168.0.0/255.255.255.0 -o ens5 -j MASQUERADE
     
     // Add specific NAT rules without disturbing existing ones
-    snprintf(buffer, sizeof(buffer), "sudo iptables -t nat -A POSTROUTING -s 10.0.0.1/24 -o wlp2s0 -j MASQUERADE");
+    snprintf(buffer, sizeof(buffer), "sudo iptables -t nat -A POSTROUTING -s 10.0.0.2/24 -o wlp2s0 -j MASQUERADE");
+    system(buffer);
+
+    snprintf(buffer, sizeof(buffer), "iptables -A FORWARD -i wlp2s0 -o veth0 -j ACCEPT && iptables -A FORWARD -o wlp2s0 -i veth0 -j ACCEPT");
     system(buffer);
 
 

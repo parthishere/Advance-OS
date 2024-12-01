@@ -32,19 +32,11 @@
 // sync primitive
 int checkpoint[2];
 
-// //wrapper for pivot root syscall
-// int pivot_root(char *a,char *b)
-// {
-// 	if (mount(a,a,"bind",MS_BIND | MS_REC,"")<0){
-// 		printf("error mount: %s\n",strerror(errno));
-// 	}
-// 	if (mkdir(b,0755) <0){
-// 		printf("error mkdir %s\n",strerror(errno));
-// 	}
-// 	printf("pivot setup ok\n");
-
-// 	return syscall(SYS_pivot_root,a,b);
-// }
+static void print_nodename() {
+  struct utsname utsname;
+  uname(&utsname);
+  printf("%s\n", utsname.nodename);
+}
 
 int child_function(void *arg)
 {
@@ -56,12 +48,15 @@ int child_function(void *arg)
 
     struct child_config *config = arg;
 
+    
     INFO_PRINT("Child process initialized");
     DEBUG_PRINT("Configuration:");
     DEBUG_PRINT("  Hostname: %s", config->hostname);
     DEBUG_PRINT("  Mount directory: %s", config->mount_dir);
 
     DEBUG_PRINT("Setting hostname to: %s", config->hostname);
+    printf("New UTS namespace nodename: ");
+    print_nodename();
     if (sethostname(config->hostname, strlen(config->hostname)) == -1)
     {
         perror("sethostname");
@@ -69,6 +64,37 @@ int child_function(void *arg)
     }
     // set new system info
     setdomainname(config->hostname, strlen(config->hostname));
+    printf("New UTS namespace nodename: ");
+    print_nodename();
+
+    // Change root
+    // DEBUG_PRINT("Changing root to: %s", config->mount_dir);
+    // if (chroot(config->mount_dir) == -1)
+    // {
+    //     perror("chroot");
+    //     exit(EXIT_FAILURE);
+    // }
+
+    // if (chdir("/") == -1)
+    // {
+    //     perror("chdir");
+    //     exit(EXIT_FAILURE);
+    // }
+
+
+    DEBUG_PRINT("Configuring mount namespace");
+    if (setup_mounts() == -1)
+    {
+        perror("setup mounts");
+        exit(EXIT_FAILURE);
+    }
+
+    char c;
+    // wait for network setup in parent
+    read(checkpoint[0], &c, 1);
+
+    // setup network
+    initialize_networking_in_container(&(config->network_config));
 
     // PID Namespace alone:
     // - Has new PIDs
@@ -88,11 +114,11 @@ int child_function(void *arg)
 
     // Change root
     DEBUG_PRINT("Changing root to: %s", config->mount_dir);
-    // if (chroot(config->mount_dir) == -1)
-    // {
-    //     perror("chroot");
-    //     exit(EXIT_FAILURE);
-    // }
+    if (chroot(config->mount_dir) == -1)
+    {
+        perror("chroot");
+        exit(EXIT_FAILURE);
+    }
 
     // if (chdir("/") == -1)
     // {
@@ -100,19 +126,6 @@ int child_function(void *arg)
     //     exit(EXIT_FAILURE);
     // }
 
-    DEBUG_PRINT("Configuring mount namespace");
-    if (setup_mounts() == -1)
-    {
-        perror("setup mounts");
-        exit(EXIT_FAILURE);
-    }
-
-    char c;
-    // wait for network setup in parent
-    read(checkpoint[0], &c, 1);
-
-    // setup network
-    initialize_networking_in_container(&(config->network_config));
 
     // Execute shell
     INFO_PRINT("Launching shell");
@@ -183,7 +196,7 @@ int main(int argc, char *argv[])
     // set resource limits
     // set_resource_limits();
 
-    system("sudo mount --make-rprivate /");
+    // system("sudo mount --make-rprivate /");
     // Create child process with new namespaces
     int flags = CLONE_NEWNS | CLONE_NEWIPC | CLONE_NEWUTS | CLONE_NEWNET | CLONE_NEWPID | SIGCHLD;
 
@@ -230,7 +243,7 @@ int main(int argc, char *argv[])
 
     // close(fd);
 
-    INFO_PRINT("Child process created successfully (PID: %d)", child_pid);
+    // INFO_PRINT("Child process created successfully (PID: %d)", child_pid);
 
     // Here, <pid> should be replaced by the process ID of the process in the child namespace as observed by the parent
 
