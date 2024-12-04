@@ -16,6 +16,9 @@
         "bpf_helpers.h": "c",
         "bpf_endian.h": "c",
         "string.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "stat.h": "c",
+        "container_monitoring.skel.h": "c",
+        "bpf_core_read.h": "c"
     }
 }

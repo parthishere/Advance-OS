@@ -6,7 +6,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/resource.h>
-
+#include <sys/stat.h>
 
 #include <string.h>
 #include <stdlib.h>
@@ -35,7 +35,15 @@ int main(int argc, char **argv)
 {
 	struct container_monitoring_bpf *skel;
     int err;
+    struct stat sb;
 
+    if(argc != 2){
+        printf("you messed up, command should be ./container_monitoring <continer-host:pid> <continer-child:pid> \n");
+        return 0;
+    }
+    else{
+        printf("%s\n", argv[1]);
+    }
     
 
 	/* Set up libbpf errors and debug info callback */
@@ -52,8 +60,9 @@ int main(int argc, char **argv)
     
     
 
-	/* ensure BPF program only handles write() syscalls from our process */
-	// skel->bss->my_pid = getpid();
+	// /* ensure BPF program only handles write() syscalls from our process */
+	skel->bss->dev = sb.st_dev;
+	skel->bss->ino = sb.st_ino;
 
 	/* Load & verify BPF programs */
 	err = container_monitoring_bpf__load(skel);

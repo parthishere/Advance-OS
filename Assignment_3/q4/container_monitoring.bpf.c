@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /* Copyright (c) 2020 Facebook */
 #include "vmlinux.h"
+#include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
-#include <bpf/bpf_endian.h>
-#include <bpf/bpf_core_read.h>
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -40,7 +39,15 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 # define CLONE_NEWNET	0x40000000	/* New network namespace.  */
 # define CLONE_IO	0x80000000	/* Clone I/O context.  */
 
-// int my_pid = 0;
+
+struct event_proc
+{
+    char allowed;
+    unsigned int uid;
+    unsigned int pid;
+    unsigned int ppid;
+    char path[64];
+};
 
 struct task_data
 {
@@ -48,6 +55,7 @@ struct task_data
 	pid_t tgid;
 	u32 ns;
 	u32 flags;
+	char comm[TASK_COMM_LEN];
 };
 
 struct
@@ -58,35 +66,52 @@ struct
 	__type(value, struct task_data);
 } data_map SEC(".maps");
 
-int my_pid = 0;
+
+
+int target_pid = 0;
 unsigned long long dev;
 unsigned long long ino;
 
 SEC("ksyscall/clone")
 int BPF_KSYSCALL(probe_clone, unsigned long flags, unsigned long stack, int *parent_tid, int *child_tid, unsigned long tls)
 {
-	// struct task_data data;
-	// u64 pid_tgid = bpf_get_current_pid_tgid();
-	// u32 pid = pid_tgid >> 32;
-	// u32 tgid = (u32)(pid_tgid & 0xFFFF);
-	// bpf_trace_printk("PID outside namespace : pid=%d \n", pid);
+	struct task_data data;
+	struct pid_namespace *pid_ns;
 
-	// struct bpf_pidns_info ns = {};
-	// if (bpf_get_ns_current_pid_tgid(dev, ino, &ns, sizeof(ns)))
-	// 	return 0;
+    // Get command name
+	char comm[TASK_COMM_LEN];
+	bpf_get_current_comm(&comm, sizeof(comm));
 
-	// data.pid = ns.pid;
-	// data.tgid = ns.tgid;
-	// data.flags = flags;
-	// bpf_trace_printk("pid=%d; upid=%d!\\n", data.pid, data.tgid);
+
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+	u32 pid = pid_tgid >> 32;
+	u32 tgid = (u32)(pid_tgid & 0xFFFF);
+
+	
+    
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    bpf_probe_read(&pid_ns, sizeof(pid_ns), &nsproxy->pid_ns_for_children);
+
+
+	struct bpf_pidns_info ns = {};
+	if (bpf_get_ns_current_pid_tgid(pid_ns->ns.dev, pid_ns->ns.inum, &ns, sizeof(ns)))
+		return 0;
+
+	
+	
 
 	// struct task_struct *t = (struct task_struct *)bpf_get_current_task();
 	// u32 upid = t->nsproxy->pid_ns_for_children->last_pid;
-	// bpf_trace_printk("pid=%d; upid=%d!\\n", pid, upid);
+	// bpf_printk("pid=%d; upid=%d!\\n", pid, upid);
 
-	// // Get command name
-	// char comm[TASK_COMM_LEN];
-	// bpf_get_current_comm(&comm, sizeof(comm));
+	data.pid = ns.pid;
+	data.tgid = ns.tgid;
+	data.flags = flags;
+	memcpy(data.comm, comm, sizeof(data.comm));
+
+	bpf_printk("************* Clone Called ***************\n");
+	bpf_printk("PID.ns: %d, TGID.ns: %d | PID: %d, TGID: %d | Command name: %s\n", data.pid, data.tgid, pid, tgid, comm);
+	bpf_printk("Flags: %lu Parent TID: %d, Child TID: %d Stack: %lu TLS %lu \n", flags, *parent_tid, *child_tid, stack, tls);
 
 	// // Print clone flags
 	if (flags & CLONE_NEWPID)
@@ -100,7 +125,8 @@ int BPF_KSYSCALL(probe_clone, unsigned long flags, unsigned long stack, int *par
 	if (flags & CLONE_NEWIPC)
 		bpf_printk("Creating new IPC namespace\n");
 
-	// bpf_map_update_elem(&data_map, &pid, &data, BPF_ANY);
+	bpf_map_update_elem(&data_map, &pid, &data, BPF_ANY);
+
 	return 0;
 }
 
@@ -164,14 +190,21 @@ TRACE_EVENT_FN(sys_enter,
 SEC("raw_tracepoint/sys_enter")
 int raw_tracepoint__sys_enter(struct bpf_raw_tracepoint_args *ctx)
 {
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+
+	struct task_data *data  = (struct task_data *)bpf_map_lookup_elem((void *)&data_map, &pid);
+
+	if(pid != data->pid){
+		return 0;
+	}
 
 	unsigned long syscall_id = ctx->args[1]; // ID
 
 	struct pt_regs *regs;
 	regs = (struct pt_regs *)ctx->args[0];
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = pid_tgid;
+    
     bpf_printk("Catched function call; PID = : %d.\n", pid);
     bpf_printk("  id: %u\n", syscall_id);
 
@@ -182,9 +215,29 @@ int raw_tracepoint__sys_enter(struct bpf_raw_tracepoint_args *ctx)
 	return 0;
 }
 
+
+
+struct net_dev_queue_params{
+	unsigned short command_type;
+	unsigned char command_flags;
+	unsigned char common_preempt_count;
+	int command_pid;
+
+	void * skbaddr;
+	unsigned int len;
+	char name[4];
+};
+
 SEC("tracepoint/net/net_dev_queue")
-int monitor_ingress(void *ctx)
+int monitor_ingress(struct net_dev_queue_params *ctx)
 {
+
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+
+	if(pid != target_pid){
+		return 0;
+	}
 	/*
 	name: net_dev_queue
 	ID: 1623
@@ -201,13 +254,21 @@ int monitor_ingress(void *ctx)
 	print fmt: "dev=%s skbaddr=%p len=%u", __get_str(name), REC->skbaddr, REC->len
 
 	*/
+
 	// The program should associate network packets with containers using cgroups or namespaces and expose bandwidth metrics to user space.
 	return 0;
 }
 
 SEC("tracepoint/net/netif_receive_skb")
-int monitor_egress(void *ctx)
+int monitor_egress(struct net_dev_queue_params *ctx)
 {
+
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+
+	if(pid != target_pid){
+		return 0;
+	}
 	// The program should associate network packets with containers using cgroups or namespaces and expose bandwidth metrics to user space.
 	/*
 	name: netif_receive_skb
@@ -224,5 +285,6 @@ int monitor_egress(void *ctx)
 
 	print fmt: "dev=%s skbaddr=%p len=%u", __get_str(name), REC->skbaddr, REC->len
 	*/
+
 	return 0;
 }

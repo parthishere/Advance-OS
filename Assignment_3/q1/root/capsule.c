@@ -29,6 +29,10 @@
 /* Default mount directory */
 #define MOUNT_DIR "."
 
+
+#define NETWORKS_SETUP 1
+#define ADD_TO_CGROUPS 0
+
 // sync primitive
 int checkpoint[2];
 
@@ -82,20 +86,14 @@ int child_function(void *arg)
     // }
 
 
-    DEBUG_PRINT("Configuring mount namespace");
-    if (setup_mounts() == -1)
-    {
-        perror("setup mounts");
-        exit(EXIT_FAILURE);
-    }
-
+#if NETWORKS_SETUP == 1
     char c;
     // wait for network setup in parent
     read(checkpoint[0], &c, 1);
 
     // setup network
     initialize_networking_in_container(&(config->network_config));
-
+#endif
     // PID Namespace alone:
     // - Has new PIDs
     // - BUT can't see them properly
@@ -120,12 +118,18 @@ int child_function(void *arg)
         exit(EXIT_FAILURE);
     }
 
-    // if (chdir("/") == -1)
-    // {
-    //     perror("chdir");
-    //     exit(EXIT_FAILURE);
-    // }
+    if (chdir("/") == -1)
+    {
+        perror("chdir");
+        exit(EXIT_FAILURE);
+    }
 
+    DEBUG_PRINT("Configuring mount namespace");
+    if (setup_mounts() == -1)
+    {
+        perror("setup mounts");
+        exit(EXIT_FAILURE);
+    }
 
     // Execute shell
     INFO_PRINT("Launching shell");
@@ -212,38 +216,42 @@ int main(int argc, char *argv[])
     }
     conf.pid = child_pid;
     INFO_PRINT("Child pid %d\n", child_pid);
-    // conf.pid = 1;
 
-
+#if NETWORKS_SETUP == 1
     initialize_networking_in_host(&conf);
-
     // signal "done"
     close(checkpoint[1]);
+#endif
 
-    // char path[1024];
-    // char pid_str[32];
-    // int fd;
+#if ADD_TO_CGROUPS == 1
+    
 
-    // snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/cgroup.procs", "mygroup");
-    // snprintf(pid_str, sizeof(pid_str), "%d", child_pid);
+    char path[1024];
+    char pid_str[32];
+    int fd;
 
-    // fd = open(path, O_WRONLY);
-    // if (fd == -1)
-    // {
-    //     perror("Failed to open tasks file");
-    //     return -1;
-    // }
+    snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/cgroup.procs", "mygroup");
+    snprintf(pid_str, sizeof(pid_str), "%d", child_pid);
 
-    // if (write(fd, pid_str, strlen(pid_str)) == -1)
-    // {
-    //     perror("Failed to add process to cgroup");
-    //     close(fd);
-    //     return -1;
-    // }
+    fd = open(path, O_WRONLY);
+    if (fd == -1)
+    {
+        perror("Failed to open tasks file");
+        return -1;
+    }
 
-    // close(fd);
+    if (write(fd, pid_str, strlen(pid_str)) == -1)
+    {
+        perror("Failed to add process to cgroup");
+        close(fd);
+        return -1;
+    }
 
-    // INFO_PRINT("Child process created successfully (PID: %d)", child_pid);
+    close(fd);
+#endif
+
+
+    INFO_PRINT("Child process created successfully (PID: %d)", child_pid);
 
     // Here, <pid> should be replaced by the process ID of the process in the child namespace as observed by the parent
 
