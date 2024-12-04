@@ -30,7 +30,7 @@
 #define MOUNT_DIR "."
 
 
-#define NETWORKS_SETUP 1
+#define NETWORKS_SETUP 0
 #define ADD_TO_CGROUPS 0
 
 // sync primitive
