@@ -75,9 +75,9 @@ unsigned long long ino;
 SEC("ksyscall/clone")
 int BPF_KSYSCALL(probe_clone, unsigned long flags, unsigned long stack, int *parent_tid, int *child_tid, unsigned long tls)
 {
+
 	struct task_data data;
 	struct pid_namespace *pid_ns;
-
     // Get command name
 	char comm[TASK_COMM_LEN];
 	bpf_get_current_comm(&comm, sizeof(comm));
@@ -86,16 +86,16 @@ int BPF_KSYSCALL(probe_clone, unsigned long flags, unsigned long stack, int *par
 	u64 pid_tgid = bpf_get_current_pid_tgid();
 	u32 pid = pid_tgid >> 32;
 	u32 tgid = (u32)(pid_tgid & 0xFFFF);
-
 	
+	pid_ns->ns_common->inum
     
-    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-    bpf_probe_read(&pid_ns, sizeof(pid_ns), &nsproxy->pid_ns_for_children);
+    // struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    // bpf_probe_read(&pid_ns, sizeof(pid_ns), &nsproxy->pid_ns_for_children);
 
 
-	struct bpf_pidns_info ns = {};
-	if (bpf_get_ns_current_pid_tgid(pid_ns->ns.dev, pid_ns->ns.inum, &ns, sizeof(ns)))
-		return 0;
+	// struct bpf_pidns_info ns = {};
+	// if (bpf_get_ns_current_pid_tgid(pid_ns->ns.dev, pid_ns->ns.inum, &ns, sizeof(ns)))
+	// 	return 0;
 
 	
 	
@@ -104,14 +104,14 @@ int BPF_KSYSCALL(probe_clone, unsigned long flags, unsigned long stack, int *par
 	// u32 upid = t->nsproxy->pid_ns_for_children->last_pid;
 	// bpf_printk("pid=%d; upid=%d!\\n", pid, upid);
 
-	data.pid = ns.pid;
-	data.tgid = ns.tgid;
-	data.flags = flags;
-	memcpy(data.comm, comm, sizeof(data.comm));
+	// data.pid = ns.pid;
+	// data.tgid = ns.tgid;
+	// data.flags = flags;
+	// memcpy(data.comm, comm, sizeof(data.comm));
 
-	bpf_printk("************* Clone Called ***************\n");
+	// bpf_printk("************* Clone Called ***************\n");
 	bpf_printk("PID.ns: %d, TGID.ns: %d | PID: %d, TGID: %d | Command name: %s\n", data.pid, data.tgid, pid, tgid, comm);
-	bpf_printk("Flags: %lu Parent TID: %d, Child TID: %d Stack: %lu TLS %lu \n", flags, *parent_tid, *child_tid, stack, tls);
+	// bpf_printk("Flags: %lu Parent TID: %d, Child TID: %d Stack: %lu TLS %lu \n", flags, *parent_tid, *child_tid, stack, tls);
 
 	// // Print clone flags
 	if (flags & CLONE_NEWPID)
@@ -193,11 +193,11 @@ int raw_tracepoint__sys_enter(struct bpf_raw_tracepoint_args *ctx)
 	u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 pid = pid_tgid >> 32;
 
-	struct task_data *data  = (struct task_data *)bpf_map_lookup_elem((void *)&data_map, &pid);
+	// struct task_data *data  = (struct task_data *)bpf_map_lookup_elem((void *)&data_map, &pid);
 
-	if(pid != data->pid){
-		return 0;
-	}
+	// if(pid != data->pid){
+	// 	return 0;
+	// }
 
 	unsigned long syscall_id = ctx->args[1]; // ID
 
@@ -205,12 +205,12 @@ int raw_tracepoint__sys_enter(struct bpf_raw_tracepoint_args *ctx)
 	regs = (struct pt_regs *)ctx->args[0];
 
     
-    bpf_printk("Catched function call; PID = : %d.\n", pid);
-    bpf_printk("  id: %u\n", syscall_id);
+    // bpf_printk("Catched function call; PID = : %d.\n", pid);
+    // bpf_printk("  id: %u\n", syscall_id);
 
-    uint64_t arg3 = 0;
-    bpf_probe_read(&arg3, sizeof(uint64_t), &PT_REGS_PARM3(regs));
-    bpf_printk("  Arg3: %u \n", arg3);
+    // uint64_t arg3 = 0;
+    // bpf_probe_read(&arg3, sizeof(uint64_t), &PT_REGS_PARM3(regs));
+    // bpf_printk("  Arg3: %u \n", arg3);
 
 	return 0;
 }

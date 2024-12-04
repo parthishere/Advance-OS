@@ -35,9 +35,9 @@ int main(int argc, char **argv)
 {
 	struct container_monitoring_bpf *skel;
     int err;
-    struct stat sb;
+    // struct stat sb;
 
-    if(argc != 2){
+    if(argc != 3){
         printf("you messed up, command should be ./container_monitoring <continer-host:pid> <continer-child:pid> \n");
         return 0;
     }
@@ -61,8 +61,8 @@ int main(int argc, char **argv)
     
 
 	// /* ensure BPF program only handles write() syscalls from our process */
-	skel->bss->dev = sb.st_dev;
-	skel->bss->ino = sb.st_ino;
+	// skel->bss->dev = sb.st_dev;
+	// skel->bss->ino = sb.st_ino;
 
 	/* Load & verify BPF programs */
 	err = container_monitoring_bpf__load(skel);

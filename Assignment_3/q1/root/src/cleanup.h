@@ -19,14 +19,7 @@ int cleanup_resources(const char *mount_dir, const char *cgroup_name)
 
     INFO_PRINT("Starting cleanup process");
 
-    // 1. First unmount all procfs, sysfs, and other mounts
-    DEBUG_PRINT("Unmounting proc filesystem");
-    if (umount("/proc") == -1)
-    {
-        WARN_PRINT("Failed to unmount /proc: %s", strerror(errno));
-        status = -1;
-    }
-
+#if ADD_TO_CGROUPS == 1
     // 2. Remove processes from cgroup
     char path[1024];
     snprintf(path, sizeof(path), "/sys/fs/cgroup/%s/cgroup.procs", cgroup_name);
@@ -51,7 +44,7 @@ int cleanup_resources(const char *mount_dir, const char *cgroup_name)
         WARN_PRINT("Failed to remove cgroup: %s", strerror(errno));
         status = -1;
     }
-
+#endif
     // system("rm -rf test_progs/");
 
     if (status == 0)
@@ -63,6 +56,8 @@ int cleanup_resources(const char *mount_dir, const char *cgroup_name)
         ERROR_PRINT("Cleanup completed with some errors");
     }
 
+    system("sudo umount ./proc");
+    system("sudo umount ./dev");
     return status;
 }
 
