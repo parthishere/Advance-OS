@@ -4,8 +4,11 @@
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
+#include <bpf/bpf_endian.h>
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
+
+#define ETH_P_IP 0x0800 // defined in if_ether.h file
 
 #define CLONE_VM 0x00000100				/* Set if VM shared between processes.  */
 #define CLONE_FS 0x00000200				/* Set if fs info shared between processes.  */
@@ -201,7 +204,7 @@ int raw_tracepoint__sys_enter(struct bpf_raw_tracepoint_args *ctx)
 	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
 
 	// Variables to store task info
-	u32 parent_pid = 0;
+	u32 cloned_parent_pid = 0;
 	u32 current_pid = 0;
 	char comm[TASK_COMM_LEN] = {};
 
@@ -221,7 +224,7 @@ int raw_tracepoint__sys_enter(struct bpf_raw_tracepoint_args *ctx)
 
 
 	parent_pid = BPF_CORE_READ(task, real_parent, tgid);
-	if (target_pid != pid && parent_pid != target_pid)
+	if (target_pid != pid && cloned_parent_pid != target_pid)
 		return 0;
 
 	unsigned long syscall_id = ctx->args[1]; // ID
@@ -352,17 +355,60 @@ struct net_dev_queue_params
 	char name[4];
 };
 
+
+
 SEC("tracepoint/net/net_dev_queue")
-int monitor_ingress(struct net_dev_queue_params *ctx)
+int monitor_ingress(struct trace_event_raw_net_dev_template *ctx)
 {
 
 	u64 pid_tgid = bpf_get_current_pid_tgid();
 	u32 pid = pid_tgid >> 32;
 
-	if (pid != target_pid)
-	{
+	// struct task_data *data  = (struct task_data *)bpf_map_lookup_elem((void *)&data_map, &pid);
+	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+
+	// Variables to store task info
+	u32 cloned_parent_pid = 0;
+	u32 current_pid = 0;
+	char comm[TASK_COMM_LEN] = {};
+
+	// Read parent PID safely using BPF helper
+	// struct task_struct *parent;
+	// bpf_probe_read(&parent, sizeof(parent), &task->parent);
+	// if (parent)
+	// {
+	// 	bpf_probe_read(&parent_pid, sizeof(parent_pid), &parent->pid);
+	// }
+
+	// Read current task's PID
+	bpf_probe_read(&current_pid, sizeof(current_pid), &task->pid);
+
+	// Read task name (comm)
+	bpf_probe_read(&comm, sizeof(comm), task->comm);
+
+
+	parent_pid = BPF_CORE_READ(task, real_parent, tgid);
+	if (target_pid != pid && cloned_parent_pid != target_pid)
 		return 0;
-	}
+
+	task->nsproxy->net_ns->ns.inum;
+
+	struct sk_buff skb;
+    bpf_probe_read(&skb, sizeof(skb), ctx->skbaddr);
+
+	struct iphdr iph;
+    bpf_core_read(&iph, sizeof(iph), skb.head + skb.network_header);
+
+
+
+    if (skb.protocol != bpf_htons(ETH_P_IP)) {
+        // This is not an IP packet
+        bpf_printk("Not an IP packet 0x%xn", skb.protocol);
+        return -1;
+    }
+
+    bpf_printk(" %pI4 -> %pI4 ", iph.saddr, iph.daddr);
+
 	/*
 	name: net_dev_queue
 	ID: 1623
@@ -391,14 +437,54 @@ int monitor_egress(struct net_dev_queue_params *ctx)
 	u64 pid_tgid = bpf_get_current_pid_tgid();
 	u32 pid = pid_tgid >> 32;
 
-	if (pid != target_pid)
-	{
+	// struct task_data *data  = (struct task_data *)bpf_map_lookup_elem((void *)&data_map, &pid);
+	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+
+	// Variables to store task info
+	u32 cloned_parent_pid = 0;
+	u32 current_pid = 0;
+	char comm[TASK_COMM_LEN] = {};
+
+	// Read parent PID safely using BPF helper
+	// struct task_struct *parent;
+	// bpf_probe_read(&parent, sizeof(parent), &task->parent);
+	// if (parent)
+	// {
+	// 	bpf_probe_read(&parent_pid, sizeof(parent_pid), &parent->pid);
+	// }
+
+	// Read current task's PID
+	bpf_probe_read(&current_pid, sizeof(current_pid), &task->pid);
+
+	// Read task name (comm)
+	bpf_probe_read(&comm, sizeof(comm), task->comm);
+
+
+	parent_pid = BPF_CORE_READ(task, real_parent, tgid);
+	if (target_pid != pid && cloned_parent_pid != target_pid)
 		return 0;
-	}
-	// The program should associate network packets with containers using cgroups or namespaces and expose bandwidth metrics to user space.
+
+	task->nsproxy->net_ns->ns.inum;
+
+	struct sk_buff skb;
+    bpf_probe_read(&skb, sizeof(skb), ctx->skbaddr);
+
+	struct iphdr iph;
+    bpf_core_read(&iph, sizeof(iph), skb.head + skb.network_header);
+
+
+
+    if (skb.protocol != bpf_htons(ETH_P_IP)) {
+        // This is not an IP packet
+        bpf_printk("Not an IP packet 0x%xn", skb.protocol);
+        return -1;
+    }
+
+    bpf_printk(" %pI4 -> %pI4 ", iph.saddr, iph.daddr);
+
 	/*
-	name: netif_receive_skb
-	ID: 1622
+	name: net_dev_queue
+	ID: 1623
 	format:
 		field:unsigned short common_type;	offset:0;	size:2;	signed:0;
 		field:unsigned char common_flags;	offset:2;	size:1;	signed:0;
@@ -410,7 +496,9 @@ int monitor_egress(struct net_dev_queue_params *ctx)
 		field:__data_loc char[] name;	offset:20;	size:4;	signed:0;
 
 	print fmt: "dev=%s skbaddr=%p len=%u", __get_str(name), REC->skbaddr, REC->len
+
 	*/
 
+	// The program should associate network packets with containers using cgroups or namespaces and expose bandwidth metrics to user space.
 	return 0;
 }
