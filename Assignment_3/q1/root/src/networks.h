@@ -79,7 +79,7 @@ int setup_bridge(network_config_t *conf)
  * Setup NAT for internet access
  * call before container (in host)
  */
-int setup_nat()
+int setup_nat(network_config_t *conf)
 {
     char buffer[1024];
     system("sudo sysctl -w net.ipv4.ip_forward=1 && sudo iptables -P FORWARD ACCEPT");
@@ -87,10 +87,10 @@ int setup_nat()
     // iptables -t nat -A POSTROUTING -s 192.168.0.0/255.255.255.0 -o ens5 -j MASQUERADE
     
     // Add specific NAT rules without disturbing existing ones
-    snprintf(buffer, sizeof(buffer), "sudo iptables -t nat -A POSTROUTING -s 10.0.0.2/24 -o wlp2s0 -j MASQUERADE");
+    snprintf(buffer, sizeof(buffer), "sudo iptables -t nat -A POSTROUTING -s %s -o wlp2s0 -j MASQUERADE", conf->container_ip);
     system(buffer);
 
-    snprintf(buffer, sizeof(buffer), "iptables -A FORWARD -i wlp2s0 -o veth0 -j ACCEPT && iptables -A FORWARD -o wlp2s0 -i veth0 -j ACCEPT");
+    snprintf(buffer, sizeof(buffer), "iptables -A FORWARD -i wlp2s0 -o %s -j ACCEPT && iptables -A FORWARD -o wlp2s0 -i %s -j ACCEPT", conf->veth_container_cb_end, conf->veth_container_cb_end);
     system(buffer);
 
 
@@ -119,7 +119,7 @@ int initialize_networking_in_host(network_config_t *config)
     printf("veth pair ns\n\r");
     setup_veth_pair_ns(config, true);
     printf("nat \n\r");
-    setup_nat();
+    setup_nat(config);
     printf("========================");
 }
 

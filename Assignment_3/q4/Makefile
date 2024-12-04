@@ -24,7 +24,7 @@ INCLUDES := -I$(OUTPUT) -Ilibbpf/include/uapi -I$(dir $(VMLINUX)) -I$(LIBBLAZESY
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = load_balancer
+APPS = container_monitoring
 
 CARGO ?= $(shell which cargo)
 ifeq ($(strip $(CARGO)),)

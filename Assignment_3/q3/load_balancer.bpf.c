@@ -4,9 +4,6 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
 
-
-#include "load_balancer_helper.h"
-
 /*
 Packet header definitions and byte order
 Since an XDP program only receives a pointer to a raw data buffer, it will need to do its own parsing of packet headers. To aid in this, the kernel headers define structs that contain the packet header fields. Parsing packets generally involves a lot of casting of data buffers to the right struct types, as we will see in the assignments below. The header definitions we will be using in this lesson are the following:
