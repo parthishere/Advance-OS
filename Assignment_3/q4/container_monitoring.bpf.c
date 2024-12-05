@@ -44,10 +44,10 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 struct task_data
 {
-	pid_t parent_pid;
-	pid_t cloned_child_pid;
-	pid_t parent_tgid;
-	pid_t cloned_child_tgid;
+	pid_t cloned_child_parent_pid;
+	pid_t cloned_child_parent_tgid;
+	pid_t cloned_child_task_pid;
+	pid_t cloned_child_task_tgid;
 	u32 syscall_number;
 	u32 flags;
 	unsigned int ppid;
@@ -62,10 +62,12 @@ struct
 	__type(value, struct task_data);
 } data_map SEC(".maps");
 
-static int parent_pid = 0;
-static int target_pid = 0;
-unsigned long long dev;
-unsigned long long ino;
+struct
+{
+	__uint(type, BPF_MAP_TYPE_RINGBUF);
+	__uint(max_entries, 1024);
+} rb SEC(".maps");
+
 
 int strcmp(const char *cs, const char *ct)
 {
@@ -83,29 +85,31 @@ int strcmp(const char *cs, const char *ct)
 	return 0;
 }
 
+static struct task_data child_data = {0};
+
 SEC("ksyscall/clone")
 int BPF_KSYSCALL(probe_clone, unsigned long flags, unsigned long stack, int *parent_tid, int *child_tid, unsigned long tls)
 {
 
-	struct task_data child_data;
-	struct pid_namespace *pid_ns;
+	// struct pid_namespace *pid_ns;
 
 	u64 pid_tgid = bpf_get_current_pid_tgid();
 	u32 pid = pid_tgid >> 32;
 	u32 tgid = (u32)(pid_tgid & 0xFFFF);
 
 	// Get command name
-	char comm[TASK_COMM_LEN];
-	bpf_get_current_comm(&comm, sizeof(comm));
-	if (strcmp(comm, "capsule") != 0)
+	bpf_get_current_comm(child_data.comm, sizeof(child_data.comm));
+
+	if (strcmp(child_data.comm, "capsule") != 0)
 		return 0;
 
-	parent_pid = pid;
-	// child_data.tgid = tgid;
-	// child_data.flags = flags;
+	child_data.cloned_child_parent_pid = pid;
+	child_data.cloned_child_parent_tgid = tgid;
+	child_data.flags = flags;
+
 
 	bpf_printk("************* Clone Called ***************\n");
-	bpf_printk("PID: %d, TGID: %d parent_pid %d | Command name: %s\n", pid, tgid, parent_pid, comm);
+	bpf_printk("cloned_child_parent: PID: %d, TGID: %d | Command name: %s\n", child_data.cloned_child_parent_pid, child_data.cloned_child_parent_tgid, child_data.comm);
 	bpf_printk("Flags: %lu, Stack: %lu TLS %lu \n", flags, stack, tls);
 
 	// // Print clone flags
@@ -126,14 +130,14 @@ int BPF_KSYSCALL(probe_clone, unsigned long flags, unsigned long stack, int *par
 SEC("kretprobe/__x64_sys_clone")
 int BPF_KRETPROBE(clone_exit, long ret)
 {
-	pid_t pid;
+	u64 pid_tgid = bpf_get_current_pid_tgid();
+	u32 pid = pid_tgid >> 32;
 
-	pid = bpf_get_current_pid_tgid() >> 32;
 
-	if (parent_pid == pid)
+	if (child_data.cloned_child_parent_pid == pid)
 	{
-		bpf_printk("KPROBE EXIT: pid = %d, ret = %ld\n", pid, ret);
-		target_pid = ret;
+		child_data.cloned_child_task_pid = ret;
+		bpf_printk("KPROBE EXIT: pid = %ld, ret = %ld\n", child_data.cloned_child_parent_pid, child_data.cloned_child_task_pid);
 	}
 	return 0;
 }
@@ -196,37 +200,34 @@ TRACE_EVENT_FN(sys_enter,
 SEC("raw_tracepoint/sys_enter")
 int raw_tracepoint__sys_enter(struct bpf_raw_tracepoint_args *ctx)
 {
-	struct task_data child_data;
-	u64 pid_tgid = bpf_get_current_pid_tgid();
-	u32 pid = pid_tgid >> 32;
-
-	// struct task_data *data  = (struct task_data *)bpf_map_lookup_elem((void *)&data_map, &pid);
+	// // struct task_data *data  = (struct task_data *)bpf_map_lookup_elem((void *)&data_map, &pid);
 	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
 
 	// Variables to store task info
-	u32 cloned_parent_pid = 0;
-	u32 current_pid = 0;
-	char comm[TASK_COMM_LEN] = {};
+	pid_t parent_pid = 0;
+	pid_t current_pid = 0;
 
 	// Read parent PID safely using BPF helper
-	// struct task_struct *parent;
-	// bpf_probe_read(&parent, sizeof(parent), &task->parent);
-	// if (parent)
-	// {
-	// 	bpf_probe_read(&parent_pid, sizeof(parent_pid), &parent->pid);
-	// }
+	struct task_struct *parent;
+	bpf_probe_read(&parent, sizeof(parent), &task->parent);
+	if (parent)
+	{
+		bpf_probe_read(&parent_pid, sizeof(parent_pid), &parent->pid);
+	}else{
+		bpf_printk("parent id not found ! \n\r");
+	}
 
 	// Read current task's PID
 	bpf_probe_read(&current_pid, sizeof(current_pid), &task->pid);
 
 	// Read task name (comm)
-	bpf_probe_read(&comm, sizeof(comm), task->comm);
+	char comm[TASK_COMM_LEN];
+	bpf_probe_read(comm, sizeof(comm), task->comm);
 
-
-	parent_pid = BPF_CORE_READ(task, real_parent, tgid);
-	if (target_pid != pid && cloned_parent_pid != target_pid)
+	if (child_data.cloned_child_task_pid != parent_pid && current_pid != child_data.cloned_child_task_pid)
 		return 0;
 
+	
 	unsigned long syscall_id = ctx->args[1]; // ID
 
 	struct pt_regs *regs;
@@ -234,110 +235,9 @@ int raw_tracepoint__sys_enter(struct bpf_raw_tracepoint_args *ctx)
 
 	uint64_t arg3 = 0;
 	bpf_probe_read(&arg3, sizeof(uint64_t), &PT_REGS_PARM3(regs));
-	// bpf_printk("Catched function call: PID = : %d | SYSCALL_NR: %u | ARG3: %u \n", pid, syscall_id, arg3);
-	/*
-	struct task_struct {
-	// Thread information if configured in task
-	struct thread_info thread_info;
 
-	// Current state of the task
-	unsigned int __state;
-
-	// Saved state for spinlock sleepers
-	unsigned int saved_state;
-
-	// Pointer to task's kernel stack
-	void *stack;
-
-	// Reference count for task usage
-	refcount_t usage;
-
-	// Per task flags (PF_*)
-	unsigned int flags;
-
-	// Ptrace flags
-	unsigned int ptrace;
-
-	// Task's priority
-	int prio;
-
-	// Static priority of task
-	int static_prio;
-
-	// Normal priority
-	int normal_prio;
-
-	// RT priority
-	unsigned int rt_priority;
-
-	// Current process ID
-	pid_t pid;
-
-	// Thread group ID (process ID)
-	pid_t tgid;
-
-	// Real parent process pointer
-	struct task_struct __rcu *real_parent;
-
-	// Parent process pointer (recipient of SIGCHLD)
-	struct task_struct __rcu *parent;
-
-	// List of children processes
-	struct list_head children;
-
-	// List of siblings
-	struct list_head sibling;
-
-	// Leader of process group
-	struct task_struct *group_leader;
-
-	// Exit code for the task
-	int exit_code;
-
-	// Signal to be sent on exit
-	int exit_signal;
-
-	// Name of the task (executable name)
-	char comm[TASK_COMM_LEN];
-
-	// File system info
-	struct fs_struct *fs;
-
-	// Open file information
-	struct files_struct *files;
-
-	// Namespace info
-	struct nsproxy *nsproxy;
-
-	// Signal handlers
-	struct signal_struct *signal;
-
-	// Shared signal handlers
-	struct sighand_struct __rcu *sighand;
-
-	// Blocked signals
-	sigset_t blocked;
-
-	// Process credentials
-	const struct cred __rcu *cred;
-	// Memory management structure
-	struct mm_struct *mm;
-	// Active memory management structure
-	struct mm_struct *active_mm;
-	// VM state
-	struct reclaim_state *reclaim_state;
-	// CPU-specific state of task
-	struct thread_struct thread;
-};
-	*/
-
-	// Get current task
-	
-	
 	bpf_printk("Syscall: PID=%d, PPID=%d, comm=%s, syscall=%u, arg3=%u\n",
 			   current_pid, parent_pid, comm, syscall_id, arg3);
-
-	
 
    
 	return 0;
@@ -361,35 +261,33 @@ SEC("tracepoint/net/net_dev_queue")
 int monitor_ingress(struct trace_event_raw_net_dev_template *ctx)
 {
 
-	u64 pid_tgid = bpf_get_current_pid_tgid();
-	u32 pid = pid_tgid >> 32;
-
 	// struct task_data *data  = (struct task_data *)bpf_map_lookup_elem((void *)&data_map, &pid);
 	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
 
 	// Variables to store task info
-	u32 cloned_parent_pid = 0;
-	u32 current_pid = 0;
-	char comm[TASK_COMM_LEN] = {};
+	pid_t parent_pid = 0;
+	pid_t current_pid = 0;
 
 	// Read parent PID safely using BPF helper
-	// struct task_struct *parent;
-	// bpf_probe_read(&parent, sizeof(parent), &task->parent);
-	// if (parent)
-	// {
-	// 	bpf_probe_read(&parent_pid, sizeof(parent_pid), &parent->pid);
-	// }
+	struct task_struct *parent;
+	bpf_probe_read(&parent, sizeof(parent), &task->parent);
+	if (parent)
+	{
+		bpf_probe_read(&parent_pid, sizeof(parent_pid), &parent->pid);
+	}else{
+		bpf_printk("parent id not found ! \n\r");
+	}
 
 	// Read current task's PID
 	bpf_probe_read(&current_pid, sizeof(current_pid), &task->pid);
 
 	// Read task name (comm)
-	bpf_probe_read(&comm, sizeof(comm), task->comm);
+	char comm[TASK_COMM_LEN];
+	bpf_probe_read(comm, sizeof(comm), task->comm);
 
-
-	parent_pid = BPF_CORE_READ(task, real_parent, tgid);
-	if (target_pid != pid && cloned_parent_pid != target_pid)
+	if (child_data.cloned_child_task_pid != parent_pid && current_pid != child_data.cloned_child_task_pid)
 		return 0;
+
 
 	task->nsproxy->net_ns->ns.inum;
 
@@ -434,35 +332,34 @@ SEC("tracepoint/net/netif_receive_skb")
 int monitor_egress(struct net_dev_queue_params *ctx)
 {
 
-	u64 pid_tgid = bpf_get_current_pid_tgid();
-	u32 pid = pid_tgid >> 32;
-
 	// struct task_data *data  = (struct task_data *)bpf_map_lookup_elem((void *)&data_map, &pid);
 	struct task_struct *task = (struct task_struct *)bpf_get_current_task();
 
 	// Variables to store task info
-	u32 cloned_parent_pid = 0;
-	u32 current_pid = 0;
-	char comm[TASK_COMM_LEN] = {};
+	pid_t parent_pid = 0;
+	pid_t current_pid = 0;
 
 	// Read parent PID safely using BPF helper
-	// struct task_struct *parent;
-	// bpf_probe_read(&parent, sizeof(parent), &task->parent);
-	// if (parent)
-	// {
-	// 	bpf_probe_read(&parent_pid, sizeof(parent_pid), &parent->pid);
-	// }
+	struct task_struct *parent;
+	bpf_probe_read(&parent, sizeof(parent), &task->parent);
+	if (parent)
+	{
+		bpf_probe_read(&parent_pid, sizeof(parent_pid), &parent->pid);
+	}else{
+		bpf_printk("parent id not found ! \n\r");
+	}
 
 	// Read current task's PID
 	bpf_probe_read(&current_pid, sizeof(current_pid), &task->pid);
 
 	// Read task name (comm)
-	bpf_probe_read(&comm, sizeof(comm), task->comm);
-
-
-	parent_pid = BPF_CORE_READ(task, real_parent, tgid);
-	if (target_pid != pid && cloned_parent_pid != target_pid)
+	char comm[TASK_COMM_LEN];
+	bpf_probe_read(comm, sizeof(comm), task->comm);
+	
+	if (child_data.cloned_child_task_pid != parent_pid && current_pid != child_data.cloned_child_task_pid)
 		return 0;
+
+
 
 	task->nsproxy->net_ns->ns.inum;
 
